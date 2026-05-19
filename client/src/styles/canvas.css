@@ -7,6 +7,7 @@
   box-shadow: var(--shadow);
   aspect-ratio: 4 / 3;
   touch-action: none;
+  user-select: none;
 }
 
 .canvas-wrap canvas {
@@ -20,60 +21,34 @@
 }
 
 .canvas-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  padding: 0.6rem;
+  padding: .55rem;
   background: var(--bg-2);
   border-radius: var(--radius);
-  margin-top: 0.6rem;
-  align-items: center;
+  border: 1px solid var(--border);
 }
 
 .canvas-toolbar .color-btn {
-  width: 32px;
-  height: 32px;
   border-radius: 50%;
-  border: 2px solid transparent;
+  border: 2px solid rgba(255, 255, 255, 0.1);
   cursor: pointer;
   padding: 0;
   min-height: 32px;
-  flex: 0 0 32px;
+  transition: transform .15s, outline-color .15s;
 }
 
-.canvas-toolbar .color-btn.active {
-  border-color: var(--text);
+.canvas-toolbar .color-btn:hover {
   transform: scale(1.1);
 }
 
 .canvas-toolbar .size-btn {
-  background: var(--bg-3);
-  border-radius: 50%;
+  border-radius: 8px;
   border: 2px solid transparent;
   cursor: pointer;
   padding: 0;
-  min-height: 32px;
-  flex: 0 0 32px;
-  width: 32px;
-  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.canvas-toolbar .size-btn .dot {
-  border-radius: 50%;
-  background: var(--text);
-}
-
-.canvas-toolbar .size-btn.active {
-  border-color: var(--primary);
-}
-
-.canvas-toolbar .tool-btn {
-  padding: 0.4rem 0.8rem;
-  min-height: 36px;
-  font-size: 0.85rem;
+  transition: border-color .15s;
 }
 
 .canvas-overlay {
@@ -82,9 +57,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(20, 22, 43, 0.85);
+  background: rgba(15, 17, 36, 0.85);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   color: var(--text);
   text-align: center;
   padding: 1rem;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
+}
+
+@media (max-width: 600px) {
+  .canvas-wrap {
+    aspect-ratio: 1 / 1;
+  }
 }

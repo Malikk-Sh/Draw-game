@@ -13,24 +13,29 @@ const display = computed(() => {
 const subtitle = computed(() => {
   if (!store.room) return '';
   if (store.room.state === 'drawing') {
-    if (store.isDrawer) return 'Ты рисуешь:';
-    return 'Угадывай слово:';
+    if (store.isDrawer) return 'Ты рисуешь';
+    return 'Угадывай слово';
   }
   if (store.room.state === 'round_end' && store.lastTurnEnd?.word) {
     return `Слово было: ${store.lastTurnEnd.word}`;
   }
   return '';
 });
+
+const wordLength = computed(() => {
+  if (!store.room) return 0;
+  return store.room.wordLength || display.value.replace(/\s/g, '').length;
+});
 </script>
 
 <template>
   <div class="word-display" v-if="subtitle">
-    <div class="subtitle muted">{{ subtitle }}</div>
+    <div class="subtitle">{{ subtitle }}</div>
     <div v-if="store.room?.state === 'drawing'" class="word">
-      <span v-for="(ch, i) in display.split('')" :key="i" class="letter">
-        {{ ch === '_' ? '_' : ch }}
+      <span v-for="(ch, i) in display.split('')" :key="i" class="letter" :class="{ revealed: ch !== '_' && ch !== ' ' }">
+        {{ ch === '_' ? '_' : ch === ' ' ? ' ' : ch }}
       </span>
-      <span class="length-hint muted">({{ store.room.wordLength || display.length }})</span>
+      <span class="length-hint">({{ wordLength }})</span>
     </div>
   </div>
 </template>
@@ -38,26 +43,36 @@ const subtitle = computed(() => {
 <style scoped>
 .word-display {
   text-align: center;
-  padding: .4rem 0;
+  padding: .25rem 0;
 }
 .subtitle {
   font-size: .82rem;
-  margin-bottom: .2rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  margin-bottom: .25rem;
 }
 .word {
-  font-size: 1.5rem;
+  font-size: 1.55rem;
   font-weight: 700;
   letter-spacing: .15em;
   text-transform: uppercase;
   display: inline-flex;
-  align-items: center;
-  gap: .15em;
+  align-items: baseline;
+  gap: .12em;
   flex-wrap: wrap;
   justify-content: center;
 }
 .letter {
   display: inline-block;
-  min-width: .6em;
+  min-width: .8em;
+  color: var(--text);
+  opacity: .5;
+  transition: opacity .3s, color .3s;
+}
+.letter.revealed {
+  opacity: 1;
+  color: var(--accent);
 }
 .length-hint {
   font-size: .85rem;
@@ -65,5 +80,9 @@ const subtitle = computed(() => {
   margin-left: .5em;
   letter-spacing: 0;
   text-transform: none;
+  color: var(--text-dim);
+}
+@media (max-width: 480px) {
+  .word { font-size: 1.25rem; }
 }
 </style>

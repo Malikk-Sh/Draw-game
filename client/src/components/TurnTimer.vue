@@ -32,12 +32,15 @@ const colorClass = computed(() => {
   if (percent.value > 20) return 'warn';
   return 'danger';
 });
+const lowTime = computed(() => percent.value <= 20);
 </script>
 
 <template>
-  <div class="timer" v-if="active">
-    <div class="bar"><div class="fill" :class="colorClass" :style="{ width: percent + '%' }"></div></div>
-    <div class="num">{{ remainSec }}с</div>
+  <div class="timer" v-if="active" :class="{ pulse: lowTime }">
+    <div class="bar">
+      <div class="fill" :class="colorClass" :style="{ width: percent + '%' }"></div>
+    </div>
+    <div class="num" :class="colorClass">⏱ {{ remainSec }}<span class="unit">с</span></div>
   </div>
 </template>
 
@@ -46,10 +49,11 @@ const colorClass = computed(() => {
   display: flex;
   align-items: center;
   gap: .6rem;
+  padding: 0 .2rem;
 }
 .bar {
   flex: 1;
-  height: 10px;
+  height: 8px;
   background: var(--bg-3);
   border-radius: 999px;
   overflow: hidden;
@@ -59,13 +63,29 @@ const colorClass = computed(() => {
   transition: width .25s linear, background .3s;
   border-radius: 999px;
 }
-.fill.ok { background: var(--success); }
-.fill.warn { background: var(--warn); }
-.fill.danger { background: var(--danger); }
+.fill.ok { background: linear-gradient(90deg, var(--success), #34d399); }
+.fill.warn { background: linear-gradient(90deg, var(--warn), #ffb347); }
+.fill.danger { background: linear-gradient(90deg, var(--danger), #ff8484); }
 .num {
   font-weight: 700;
-  min-width: 3rem;
+  min-width: 3.5rem;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  font-size: 1rem;
+}
+.num.ok { color: var(--success); }
+.num.warn { color: var(--warn); }
+.num.danger { color: var(--danger); }
+.unit {
+  font-size: .8em;
+  font-weight: 500;
+  margin-left: .1em;
+}
+.timer.pulse .num {
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
 }
 </style>

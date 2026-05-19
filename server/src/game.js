@@ -1,6 +1,7 @@
 import {
   buildMaskedWord,
   clearAllTimers,
+  notifyLobby,
   publicState,
 } from './rooms.js';
 import { normalize, randomWords, levenshtein } from './words.js';
@@ -32,6 +33,7 @@ export function nextTurn(io, room) {
   clearAllTimers(room);
   room.guessedBy = new Set();
   room.strokes = [];
+  room.redoStack = [];
   room.currentWord = null;
   room.wordMask = [];
   room.hintsRevealed = 0;
@@ -62,6 +64,7 @@ export function nextTurn(io, room) {
 
   io.to(room.id).emit('room:stateUpdate', { state: room.state, drawerId: room.drawerId, round: room.round });
   io.to(room.drawerId).emit('game:wordChoices', { words: choices, timeMs: CHOOSING_MS });
+  if (room.isPublic) notifyLobby();
 
   const drawer = room.players.get(room.drawerId);
   io.to(room.id).emit('chat:system', {
@@ -211,6 +214,7 @@ export function endGame(io, room) {
   io.to(room.id).emit('chat:system', {
     text: ranking[0] ? `Победитель: ${ranking[0].nickname}!` : 'Игра окончена.',
   });
+  if (room.isPublic) notifyLobby();
 }
 
 export function resetToLobby(room) {
@@ -221,9 +225,11 @@ export function resetToLobby(room) {
   room.currentWord = null;
   room.wordMask = [];
   room.strokes = [];
+  room.redoStack = [];
   room.guessedBy = new Set();
   room.drawerIndex = -1;
   for (const p of room.players.values()) p.score = 0;
+  if (room.isPublic) notifyLobby();
 }
 
 export function snapshot(room) {

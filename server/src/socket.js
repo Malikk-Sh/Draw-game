@@ -6,6 +6,7 @@ import {
   listPublicRooms,
   publicState,
   removePlayer,
+  setLobbyNotifier,
 } from './rooms.js';
 import {
   chooseWord,
@@ -46,11 +47,24 @@ function sanitizeNick(n) {
 }
 
 export function registerSocketHandlers(io) {
+  setLobbyNotifier(() => {
+    io.to('lobby').emit('lobby:rooms', { rooms: listPublicRooms() });
+  });
+
   io.on('connection', (socket) => {
     socket.data.roomId = null;
 
     socket.on('lobby:list', (cb) => {
       safeCb(cb, { rooms: listPublicRooms() });
+    });
+
+    socket.on('lobby:subscribe', () => {
+      socket.join('lobby');
+      socket.emit('lobby:rooms', { rooms: listPublicRooms() });
+    });
+
+    socket.on('lobby:unsubscribe', () => {
+      socket.leave('lobby');
     });
 
     socket.on('room:create', ({ nickname, name, isPublic, settings } = {}, cb) => {
@@ -119,7 +133,28 @@ export function registerSocketHandlers(io) {
       const safeStroke = sanitizeStroke(stroke);
       room.strokes.push(safeStroke);
       if (room.strokes.length > 2000) room.strokes.shift();
+      if (room.redoStack.length) room.redoStack = [];
       socket.to(room.id).emit('game:drawStroke', safeStroke);
+    });
+
+    socket.on('game:undo', () => {
+      const room = currentRoom(socket);
+      if (!room || room.state !== 'drawing') return;
+      if (socket.id !== room.drawerId) return;
+      if (room.strokes.length === 0) return;
+      const popped = room.strokes.pop();
+      room.redoStack.push(popped);
+      socket.to(room.id).emit('game:canvasReplace', { strokes: room.strokes });
+    });
+
+    socket.on('game:redo', () => {
+      const room = currentRoom(socket);
+      if (!room || room.state !== 'drawing') return;
+      if (socket.id !== room.drawerId) return;
+      if (room.redoStack.length === 0) return;
+      const stroke = room.redoStack.pop();
+      room.strokes.push(stroke);
+      socket.to(room.id).emit('game:drawStroke', stroke);
     });
 
     socket.on('game:clearCanvas', () => {
@@ -127,6 +162,7 @@ export function registerSocketHandlers(io) {
       if (!room) return;
       if (socket.id !== room.drawerId) return;
       room.strokes = [];
+      room.redoStack = [];
       io.to(room.id).emit('game:clearCanvas');
     });
 

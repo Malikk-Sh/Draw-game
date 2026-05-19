@@ -5,6 +5,14 @@ const PUBLIC_ID = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 8);
 
 const rooms = new Map();
 
+let lobbyNotifier = null;
+export function setLobbyNotifier(fn) {
+  lobbyNotifier = fn;
+}
+export function notifyLobby() {
+  if (lobbyNotifier) lobbyNotifier();
+}
+
 export function getRoom(id) {
   return rooms.get(id);
 }
@@ -49,10 +57,12 @@ export function createRoom({ name, isPublic, settings, hostId, hostNickname }) {
     roundEndTimer: null,
     guessedBy: new Set(),
     strokes: [],
+    redoStack: [],
     recentWords: [],
     settings,
   };
   rooms.set(id, room);
+  if (room.isPublic) notifyLobby();
   return room;
 }
 
@@ -61,6 +71,7 @@ export function deleteRoom(id) {
   if (!room) return;
   clearAllTimers(room);
   rooms.delete(id);
+  if (room.isPublic) notifyLobby();
 }
 
 export function clearAllTimers(room) {
@@ -87,6 +98,7 @@ export function addPlayer(room, socketId, nickname) {
   if (!room.hostId || !room.players.has(room.hostId)) {
     room.hostId = socketId;
   }
+  if (room.isPublic) notifyLobby();
   return player;
 }
 
@@ -98,6 +110,7 @@ export function removePlayer(room, socketId) {
     const next = room.players.keys().next();
     room.hostId = next.done ? null : next.value;
   }
+  if (room.isPublic) notifyLobby();
   return player;
 }
 

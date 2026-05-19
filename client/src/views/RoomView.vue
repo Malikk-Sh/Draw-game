@@ -31,6 +31,18 @@ const canStart = computed(() => {
   return store.isHost && store.room?.state === 'waiting' && store.room.players.length >= 2;
 });
 
+const stateLabel = computed(() => {
+  if (!store.room) return '';
+  switch (store.room.state) {
+    case 'waiting': return 'ожидание';
+    case 'choosing': return 'выбор слова';
+    case 'drawing': return 'идёт раунд';
+    case 'round_end': return 'итоги хода';
+    case 'game_end': return 'игра окончена';
+    default: return '';
+  }
+});
+
 async function joinIfNeeded() {
   if (store.room?.id === props.id) return;
   if (!userStore.nickname) {
@@ -61,18 +73,12 @@ async function copyInvite() {
     await navigator.clipboard.writeText(inviteUrl.value);
     copied.value = true;
     setTimeout(() => { copied.value = false; }, 1500);
-  } catch (_) {
-    /* fallback noop */
-  }
+  } catch (_) {}
 }
 
-onMounted(() => {
-  joinIfNeeded();
-});
+onMounted(() => { joinIfNeeded(); });
 
-onBeforeUnmount(() => {
-  store.leave();
-});
+onBeforeUnmount(() => { store.leave(); });
 
 watch(
   () => store.connected,
@@ -84,29 +90,38 @@ watch(
 
 <template>
   <main class="room">
-    <div v-if="error" class="card" style="margin:1rem">
-      <p style="color:var(--danger);margin:0 0 .6rem">{{ error }}</p>
+    <div v-if="error" class="card error-card">
+      <p class="error-text">{{ error }}</p>
       <button @click="router.push('/lobby')">В лобби</button>
     </div>
 
     <template v-else-if="store.room">
-      <div class="room-header">
-        <div class="room-title">
-          <div class="row" style="gap:.5rem;flex-wrap:wrap;align-items:center">
-            <h2 style="margin:0">{{ store.room.name }}</h2>
-            <span class="badge">{{ store.room.isPublic ? 'публичная' : 'приватная' }}</span>
-            <span class="badge">Раунд {{ Math.max(1, store.room.round) }} / {{ store.room.maxRounds }}</span>
+      <div class="room-header card">
+        <div class="header-left">
+          <h2 class="room-name">{{ store.room.name }}</h2>
+          <div class="header-tags">
+            <span class="badge" :class="store.room.isPublic ? 'pub' : 'priv'">
+              {{ store.room.isPublic ? '🌍 публичная' : '🔒 приватная' }}
+            </span>
+            <span class="badge state">{{ stateLabel }}</span>
+            <span class="badge round" v-if="store.room.state !== 'waiting'">
+              Раунд {{ Math.max(1, store.room.round) }} / {{ store.room.maxRounds }}
+            </span>
           </div>
-          <div class="row" style="gap:.4rem;margin-top:.3rem">
+          <div class="invite-row">
+            <span class="muted invite-lbl">Код:</span>
             <code class="invite-code">{{ store.room.id }}</code>
-            <button class="ghost" style="padding:.3rem .6rem;min-height:32px;font-size:.8rem" @click="copyInvite">
-              {{ copied ? 'Скопировано!' : 'Копировать ссылку' }}
+            <button class="ghost copy-btn" @click="copyInvite">
+              {{ copied ? '✓ скопировано' : '🔗 ссылка' }}
             </button>
           </div>
         </div>
-        <div class="room-actions">
-          <button v-if="canStart" @click="start">Начать игру</button>
-          <button class="ghost" @click="leave">Выйти</button>
+        <div class="header-actions">
+          <button v-if="canStart" @click="start" class="start-btn">▶ Начать игру</button>
+          <button v-else-if="store.isHost && store.room.state === 'waiting'" disabled class="ghost">
+            Нужно ≥ 2 игроков
+          </button>
+          <button class="ghost leave-btn" @click="leave">Выйти</button>
         </div>
       </div>
 
@@ -125,8 +140,12 @@ watch(
       </div>
 
       <nav class="mobile-tabs">
-        <button :class="{ active: mobileTab === 'chat' }" @click="mobileTab = 'chat'">Чат</button>
-        <button :class="{ active: mobileTab === 'players' }" @click="mobileTab = 'players'">Игроки</button>
+        <button :class="{ active: mobileTab === 'chat' }" @click="mobileTab = 'chat'">
+          💬 Чат
+        </button>
+        <button :class="{ active: mobileTab === 'players' }" @click="mobileTab = 'players'">
+          👥 Игроки <span class="count">{{ store.room.players.length }}</span>
+        </button>
       </nav>
       <div class="mobile-panel">
         <PlayersList v-if="mobileTab === 'players'" />
@@ -137,50 +156,97 @@ watch(
       <RoundEndModal />
     </template>
 
-    <div v-else class="center-screen muted">Подключаемся к комнате...</div>
+    <div v-else class="center-screen muted">
+      <div class="loading">
+        <div class="spinner"></div>
+        Подключаемся к комнате...
+      </div>
+    </div>
   </main>
 </template>
 
 <style scoped>
 .room {
-  padding: .8rem;
+  padding: .7rem;
   display: flex;
   flex-direction: column;
-  gap: .8rem;
+  gap: .7rem;
   flex: 1;
 }
+.error-card {
+  margin: 1rem;
+  text-align: center;
+}
+.error-text { color: var(--danger); margin: 0 0 .8rem; }
+
 .room-header {
+  padding: .85rem 1rem;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: .6rem;
-  background: var(--bg-2);
-  padding: .6rem .9rem;
-  border-radius: var(--radius);
+  gap: .8rem;
 }
-.room-actions {
+.header-left { flex: 1; min-width: 220px; }
+.room-name {
+  margin: 0 0 .3rem;
+  font-size: 1.15rem;
+}
+.header-tags {
   display: flex;
-  gap: .4rem;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin-bottom: .4rem;
 }
+.badge.pub { background: rgba(46, 204, 113, 0.2); color: var(--success); }
+.badge.priv { background: rgba(255, 209, 102, 0.2); color: var(--accent); }
+.badge.state { text-transform: uppercase; letter-spacing: .05em; font-size: .7rem; }
+.badge.round { background: var(--bg-3); color: var(--text); }
+
+.invite-row {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+.invite-lbl { font-size: .82rem; }
 .invite-code {
   background: var(--bg-3);
-  padding: .15rem .55rem;
+  padding: .2rem .65rem;
   border-radius: 6px;
-  font-family: ui-monospace, monospace;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-weight: 700;
-  letter-spacing: .1em;
+  letter-spacing: .12em;
+  color: var(--accent);
+}
+.copy-btn {
+  padding: .25rem .6rem;
+  min-height: 30px;
+  font-size: .8rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+.start-btn {
+  background: linear-gradient(135deg, var(--success), #1abc9c);
+  font-size: .95rem;
+}
+.leave-btn {
+  font-size: .9rem;
+  padding: .5rem 1rem;
+  min-height: 38px;
 }
 
 .game-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: .8rem;
+  gap: .7rem;
 }
 .grid-players,
-.grid-chat {
-  display: none;
-}
+.grid-chat { display: none; }
 .grid-canvas {
   display: flex;
   flex-direction: column;
@@ -195,34 +261,53 @@ watch(
   flex: 1;
   background: var(--bg-2);
   color: var(--text-dim);
+  border: 1px solid var(--border);
+  min-height: 40px;
+  font-size: .95rem;
 }
 .mobile-tabs button.active {
   background: var(--primary);
   color: white;
+  border-color: var(--primary);
+}
+.count {
+  margin-left: .25rem;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0 .35rem;
+  border-radius: 999px;
+  font-size: .75rem;
 }
 .mobile-panel {
-  height: 320px;
+  height: 340px;
 }
 
+.loading {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+}
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--bg-3);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 @media (min-width: 900px) {
-  .room {
-    padding: 1rem;
-  }
+  .room { padding: 1rem; gap: 1rem; }
   .game-grid {
-    grid-template-columns: 220px 1fr 300px;
+    grid-template-columns: 240px 1fr 320px;
     align-items: start;
+    min-height: 0;
   }
-  .grid-players,
-  .grid-chat {
-    display: block;
-  }
+  .grid-players, .grid-chat { display: block; }
   .grid-chat {
     height: 70vh;
     max-height: 760px;
   }
-  .mobile-tabs,
-  .mobile-panel {
-    display: none;
-  }
+  .mobile-tabs, .mobile-panel { display: none; }
 }
 </style>

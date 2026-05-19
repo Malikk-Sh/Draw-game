@@ -5,10 +5,13 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   const color = ref('#1a1a1a');
   const size = ref(4);
   const tool = ref('brush');
+  const undoCount = ref(0);
+  const redoCount = ref(0);
   let ctx = null;
   let dpr = 1;
   let activeStroke = null;
   let strokes = [];
+  let redoStack = [];
   let resizeObserver = null;
 
   function setupCanvas() {
@@ -86,11 +89,17 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     for (const s of strokes) drawStroke(s);
   }
 
+  function refreshCounters() {
+    undoCount.value = strokes.length;
+    redoCount.value = redoStack.length;
+  }
+
   function applyEvents(events) {
     let changed = false;
     for (const e of events) {
       if (e.kind === 'replace') {
         strokes = [...e.strokes];
+        redoStack = [];
         changed = true;
       } else if (e.kind === 'add') {
         strokes.push(e.stroke);
@@ -98,6 +107,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
       }
     }
     if (changed) redraw();
+    refreshCounters();
   }
 
   let rafScheduled = false;
@@ -114,7 +124,9 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   watch(() => store.pendingNewStrokes.length, scheduleSync);
   watch(() => store.clearSignal, () => {
     strokes = [];
+    redoStack = [];
     redraw();
+    refreshCounters();
   });
 
   function getRelativePoint(ev) {
@@ -129,6 +141,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
 
   function onPointerDown(ev) {
     if (!isDrawer.value) return;
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
     ev.preventDefault();
     canvasRef.value.setPointerCapture(ev.pointerId);
     activeStroke = {
@@ -138,6 +151,10 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
       points: [getRelativePoint(ev)],
     };
     strokes.push(activeStroke);
+    if (redoStack.length) {
+      redoStack = [];
+      refreshCounters();
+    }
     drawStroke(activeStroke);
   }
 
@@ -163,6 +180,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     try { canvasRef.value.releasePointerCapture(ev.pointerId); } catch (_) {}
     flushActiveStroke(true);
     activeStroke = null;
+    refreshCounters();
   }
 
   function flushActiveStroke(finalize) {
@@ -189,8 +207,28 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   function clearCanvas() {
     if (!isDrawer.value) return;
     strokes = [];
+    redoStack = [];
     redraw();
+    refreshCounters();
     getSocket().emit('game:clearCanvas');
+  }
+
+  function undo() {
+    if (!isDrawer.value || strokes.length === 0) return;
+    const popped = strokes.pop();
+    redoStack.push(popped);
+    redraw();
+    refreshCounters();
+    getSocket().emit('game:undo');
+  }
+
+  function redo() {
+    if (!isDrawer.value || redoStack.length === 0) return;
+    const stroke = redoStack.pop();
+    strokes.push(stroke);
+    drawStroke(stroke);
+    refreshCounters();
+    getSocket().emit('game:redo');
   }
 
   function setColor(c) {
@@ -199,6 +237,21 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   }
   function setSize(s) { size.value = s; }
   function setTool(t) { tool.value = t; }
+
+  function onKeyDown(ev) {
+    if (!isDrawer.value) return;
+    if (ev.target && (ev.target.tagName === 'INPUT' || ev.target.tagName === 'TEXTAREA')) return;
+    const meta = ev.ctrlKey || ev.metaKey;
+    if (!meta) return;
+    const key = ev.key.toLowerCase();
+    if (key === 'z' && !ev.shiftKey) {
+      ev.preventDefault();
+      undo();
+    } else if (key === 'y' || (key === 'z' && ev.shiftKey)) {
+      ev.preventDefault();
+      redo();
+    }
+  }
 
   onMounted(() => {
     setupCanvas();
@@ -209,6 +262,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     canvas.addEventListener('pointercancel', onPointerUp);
     canvas.addEventListener('pointerleave', onPointerUp);
     window.addEventListener('resize', resize);
+    window.addEventListener('keydown', onKeyDown);
     if (typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(resize);
       resizeObserver.observe(canvas);
@@ -226,10 +280,16 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
       canvas.removeEventListener('pointerleave', onPointerUp);
     }
     window.removeEventListener('resize', resize);
+    window.removeEventListener('keydown', onKeyDown);
     if (resizeObserver) resizeObserver.disconnect();
   });
 
-  return { color, size, tool, setColor, setSize, setTool, clearCanvas };
+  return {
+    color, size, tool,
+    undoCount, redoCount,
+    setColor, setSize, setTool,
+    clearCanvas, undo, redo,
+  };
 }
 
 function clamp01(v) {
