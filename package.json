@@ -2,7 +2,7 @@
   "name": "draw-game",
   "version": "1.0.0",
   "private": true,
-  "description": "Мультиплеерная веб-игра «Крокодил» на Vue 3 и Socket.IO",
+  "description": "Мультиплеерная веб-игра «Скетч-Баттл» на Vue 3 и Socket.IO",
   "engines": {
     "node": ">=20"
   },
