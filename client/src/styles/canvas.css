@@ -1,0 +1,90 @@
+.canvas-wrap {
+  position: relative;
+  width: 100%;
+  background: #ffffff;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  aspect-ratio: 4 / 3;
+  touch-action: none;
+}
+
+.canvas-wrap canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.canvas-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  background: var(--bg-2);
+  border-radius: var(--radius);
+  margin-top: 0.6rem;
+  align-items: center;
+}
+
+.canvas-toolbar .color-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  min-height: 32px;
+  flex: 0 0 32px;
+}
+
+.canvas-toolbar .color-btn.active {
+  border-color: var(--text);
+  transform: scale(1.1);
+}
+
+.canvas-toolbar .size-btn {
+  background: var(--bg-3);
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  min-height: 32px;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.canvas-toolbar .size-btn .dot {
+  border-radius: 50%;
+  background: var(--text);
+}
+
+.canvas-toolbar .size-btn.active {
+  border-color: var(--primary);
+}
+
+.canvas-toolbar .tool-btn {
+  padding: 0.4rem 0.8rem;
+  min-height: 36px;
+  font-size: 0.85rem;
+}
+
+.canvas-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 22, 43, 0.85);
+  color: var(--text);
+  text-align: center;
+  padding: 1rem;
+  font-size: 1.1rem;
+}
