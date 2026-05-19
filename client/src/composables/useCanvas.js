@@ -139,6 +139,25 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
 
   let lastEmitAt = 0;
 
+  function getEventPoints(ev) {
+    if (typeof ev.getCoalescedEvents !== 'function') return [getRelativePoint(ev)];
+    const batch = ev.getCoalescedEvents();
+    if (!batch || batch.length === 0) return [getRelativePoint(ev)];
+    return batch.map(getRelativePoint);
+  }
+
+  function pushPointToStroke(stroke, pt) {
+    const last = stroke.points[stroke.points.length - 1];
+    if (!last) {
+      stroke.points.push(pt);
+      return true;
+    }
+    const minStep = Math.max(0.00035, 0.0015 / Math.max(stroke.size, 1));
+    if (Math.abs(last[0] - pt[0]) < minStep && Math.abs(last[1] - pt[1]) < minStep) return false;
+    stroke.points.push(pt);
+    return true;
+  }
+
   function onPointerDown(ev) {
     if (!isDrawer.value) return;
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
@@ -161,14 +180,16 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   function onPointerMove(ev) {
     if (!isDrawer.value || !activeStroke) return;
     ev.preventDefault();
-    const pt = getRelativePoint(ev);
-    const last = activeStroke.points[activeStroke.points.length - 1];
-    if (Math.abs(last[0] - pt[0]) < 0.002 && Math.abs(last[1] - pt[1]) < 0.002) return;
-    activeStroke.points.push(pt);
+    const points = getEventPoints(ev);
+    let changed = false;
+    for (const pt of points) {
+      if (pushPointToStroke(activeStroke, pt)) changed = true;
+    }
+    if (!changed) return;
     drawStroke(activeStroke);
 
     const now = performance.now();
-    if (now - lastEmitAt > 80 && activeStroke.points.length > 6) {
+    if (now - lastEmitAt > 70 && activeStroke.points.length > 10) {
       flushActiveStroke(false);
       lastEmitAt = now;
     }

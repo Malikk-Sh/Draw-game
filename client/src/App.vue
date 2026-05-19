@@ -14,7 +14,7 @@ const isHome = computed(() => route.name === 'home');
 <template>
   <header class="app-header" v-if="!isHome">
     <router-link to="/" class="logo">
-      🎨 Крокодил
+      🎨 Скетч-Баттл
     </router-link>
     <div class="status" :class="{ online: store.connected }">
       <span class="dot"></span>
