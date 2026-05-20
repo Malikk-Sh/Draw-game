@@ -84,7 +84,7 @@ onMounted(() => {
   if (sock.connected) subscribe();
   sock.on('connect', subscribe);
   refresh();
-  pollTimer = setInterval(refresh, 8000);
+  pollTimer = setInterval(refresh, 2000);
 });
 
 onBeforeUnmount(() => {

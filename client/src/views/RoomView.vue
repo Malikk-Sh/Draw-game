@@ -258,21 +258,18 @@ watch(
 }
 
 .mobile-tabs {
-  display: flex;
-  gap: .4rem;
-  position: fixed;
-  left: .6rem;
-  right: .6rem;
-  bottom: .6rem;
-  z-index: 30;
+  display: block;
+  margin-top: .2rem;
 }
 .mobile-tabs button {
-  flex: 1;
+  display: block;
+  width: 100%;
   background: var(--bg-2);
   color: var(--text-dim);
   border: 1px solid var(--border);
   min-height: 40px;
   font-size: .95rem;
+  margin-bottom: .4rem;
 }
 .mobile-tabs button.active {
   background: var(--primary);
