@@ -18,6 +18,7 @@ function leave() {
 }
 
 const medals = ['🥇', '🥈', '🥉'];
+const onlinePlayers = computed(() => (store.room?.players || []).filter((p) => p.isConnected !== false));
 </script>
 
 <template>
@@ -38,6 +39,7 @@ const medals = ['🥇', '🥈', '🥉'];
             <span class="score">{{ p.score }}</span>
           </li>
         </ol>
+        <p class="muted" style="margin:.2rem 0 .5rem">Остались в комнате: {{ onlinePlayers.map((p) => p.nickname).join(', ') || '—' }}</p>
         <div class="end-actions">
           <button v-if="store.isHost" @click="playAgain" class="play-again">
             🔄 Играть ещё

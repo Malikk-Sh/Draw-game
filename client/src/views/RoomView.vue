@@ -19,7 +19,7 @@ const userStore = useUserStore();
 const store = useGameStore();
 
 const error = ref('');
-const mobileTab = ref('chat');
+const mobileTab = ref(null);
 const copied = ref(false);
 
 const inviteUrl = computed(() => {
@@ -53,7 +53,11 @@ async function joinIfNeeded() {
   if (!socket.connected) {
     await new Promise((res) => socket.once('connect', res));
   }
-  const res = await emitAck('room:join', { roomId: props.id, nickname: userStore.nickname });
+  const res = await emitAck('room:join', {
+    roomId: props.id,
+    nickname: userStore.nickname,
+    userId: userStore.ensureUserId(),
+  });
   if (!res?.ok) {
     error.value = res?.error || 'Не удалось войти в комнату';
   }
@@ -83,7 +87,7 @@ onBeforeUnmount(() => { store.leave(); });
 watch(
   () => store.connected,
   (c) => {
-    if (c && (!store.room || store.room.id !== props.id)) joinIfNeeded();
+    if (c) joinIfNeeded();
   },
 );
 </script>
@@ -140,14 +144,14 @@ watch(
       </div>
 
       <nav class="mobile-tabs">
-        <button :class="{ active: mobileTab === 'chat' }" @click="mobileTab = 'chat'">
+        <button :class="{ active: mobileTab === 'chat' }" @click="mobileTab = mobileTab === 'chat' ? null : 'chat'">
           💬 Чат
         </button>
-        <button :class="{ active: mobileTab === 'players' }" @click="mobileTab = 'players'">
+        <button :class="{ active: mobileTab === 'players' }" @click="mobileTab = mobileTab === 'players' ? null : 'players'">
           👥 Игроки <span class="count">{{ store.room.players.length }}</span>
         </button>
       </nav>
-      <div class="mobile-panel">
+      <div class="mobile-panel" :class="{ open: !!mobileTab }">
         <PlayersList v-if="mobileTab === 'players'" />
         <ChatBox v-else />
       </div>
@@ -280,7 +284,22 @@ watch(
   font-size: .75rem;
 }
 .mobile-panel {
-  height: 340px;
+  position: fixed;
+  left: .6rem;
+  right: .6rem;
+  bottom: 3.6rem;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: all .2s ease;
+  z-index: 29;
+  background: rgba(10, 14, 24, .72);
+  backdrop-filter: blur(4px);
+  border-radius: 12px;
+}
+.mobile-panel.open {
+  height: min(55vh, 420px);
+  opacity: 1;
 }
 
 .loading {
