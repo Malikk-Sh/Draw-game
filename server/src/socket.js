@@ -130,6 +130,7 @@ export function registerSocketHandlers(io) {
       if (!room || room.state !== 'drawing') return;
       if (socket.id !== room.drawerId) return;
       if (!isValidStroke(stroke)) return;
+      // Сервер хранит историю в виде чанков, но с общим идентификатором штриха для одного жеста.
       const safeStroke = sanitizeStroke(stroke);
       room.strokes.push(safeStroke);
       if (room.strokes.length > 2000) room.strokes.shift();
@@ -142,8 +143,14 @@ export function registerSocketHandlers(io) {
       if (!room || room.state !== 'drawing') return;
       if (socket.id !== room.drawerId) return;
       if (room.strokes.length === 0) return;
-      const popped = room.strokes.pop();
-      room.redoStack.push(popped);
+      // Отмена удаляет весь жест целиком (все чанки с одним идентификатором штриха).
+      const targetId = room.strokes[room.strokes.length - 1].strokeId || '__legacy__';
+      while (room.strokes.length) {
+        const top = room.strokes[room.strokes.length - 1];
+        const topId = top.strokeId || '__legacy__';
+        if (topId !== targetId) break;
+        room.redoStack.push(room.strokes.pop());
+      }
       socket.to(room.id).emit('game:canvasReplace', { strokes: room.strokes });
     });
 
@@ -152,9 +159,20 @@ export function registerSocketHandlers(io) {
       if (!room || room.state !== 'drawing') return;
       if (socket.id !== room.drawerId) return;
       if (room.redoStack.length === 0) return;
-      const stroke = room.redoStack.pop();
-      room.strokes.push(stroke);
-      socket.to(room.id).emit('game:drawStroke', stroke);
+      // Возврат возвращает один полный жест в исходной последовательности чанков.
+      const targetId = room.redoStack[room.redoStack.length - 1].strokeId || '__legacy__';
+      const recovered = [];
+      while (room.redoStack.length) {
+        const top = room.redoStack[room.redoStack.length - 1];
+        const topId = top.strokeId || '__legacy__';
+        if (topId !== targetId) break;
+        recovered.push(room.redoStack.pop());
+      }
+      recovered.reverse();
+      for (const stroke of recovered) {
+        room.strokes.push(stroke);
+        socket.to(room.id).emit('game:drawStroke', stroke);
+      }
     });
 
     socket.on('game:clearCanvas', () => {
@@ -257,10 +275,12 @@ function isValidStroke(s) {
 }
 
 function sanitizeStroke(s) {
+  // Идентификатор штриха безопасно ограничиваем по длине — он нужен только для группировки отмены/возврата.
+  const strokeId = typeof s.strokeId === 'string' ? s.strokeId.slice(0, 64) : null;
   const color = typeof s.color === 'string' ? s.color.slice(0, 16) : '#000000';
   const size = clamp(Number(s.size) || 4, 1, 64);
   const tool = s.tool === 'eraser' ? 'eraser' : 'brush';
-  return { color, size, tool, points: s.points };
+  return { strokeId, color, size, tool, points: s.points };
 }
 
 function safeCb(cb, payload) {

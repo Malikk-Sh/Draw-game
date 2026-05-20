@@ -52,7 +52,7 @@ button {
   border: none;
   border-radius: var(--radius-sm);
   background: var(--primary);
-  color: white;
+  color: var(--text);
   cursor: pointer;
   transition: background .15s, transform .08s;
   min-height: 44px;
@@ -218,17 +218,17 @@ h1, h2, h3 {
 
 .badge.you {
   background: var(--primary);
-  color: white;
+  color: #2b1d00;
 }
 
 .badge.drawer {
   background: var(--success);
-  color: white;
+  color: #163a22;
 }
 
 .badge.guessed {
   background: var(--success);
-  color: white;
+  color: #163a22;
 }
 
 /* Scrollbars */
