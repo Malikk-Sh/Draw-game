@@ -18,6 +18,8 @@ export const useGameStore = defineStore('game', {
     lastGameEnd: null,
     lobbyRooms: [],
     floatingPoints: [],
+    lastRoomId: null,
+    leftManually: false,
   }),
   getters: {
     isHost: (s) => s.room && s.myId && s.room.hostId === s.myId,
@@ -146,6 +148,8 @@ export const useGameStore = defineStore('game', {
     leave() {
       const s = getSocket();
       s.emit('room:leave');
+      this.leftManually = true;
+      this.lastRoomId = null;
       this.room = null;
       this.wordToDraw = null;
       this.wordChoices = null;
@@ -153,6 +157,13 @@ export const useGameStore = defineStore('game', {
       this.messages = [];
       this.lastTurnEnd = null;
       this.lastGameEnd = null;
+    },
+    markJoinedRoom(roomId) {
+      this.lastRoomId = roomId || null;
+      this.leftManually = false;
+    },
+    clearManualLeave() {
+      this.leftManually = false;
     },
   },
 });
