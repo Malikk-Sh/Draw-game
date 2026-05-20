@@ -7,6 +7,7 @@ const store = useGameStore();
 const display = computed(() => {
   if (!store.room || store.room.state !== 'drawing') return '';
   if (store.isDrawer && store.wordToDraw) return store.wordToDraw;
+  if (!store.room?.settings?.hintsEnabled) return '';
   return store.maskedWord || '';
 });
 
@@ -24,6 +25,7 @@ const subtitle = computed(() => {
 
 const wordLength = computed(() => {
   if (!store.room) return 0;
+  if (!store.room.settings?.hintsEnabled) return 0;
   return store.room.wordLength || display.value.replace(/\s/g, '').length;
 });
 </script>
@@ -31,11 +33,11 @@ const wordLength = computed(() => {
 <template>
   <div class="word-display" v-if="subtitle">
     <div class="subtitle">{{ subtitle }}</div>
-    <div v-if="store.room?.state === 'drawing'" class="word">
+    <div v-if="store.room?.state === 'drawing' && (store.isDrawer || store.room?.settings?.hintsEnabled)" class="word">
       <span v-for="(ch, i) in display.split('')" :key="i" class="letter" :class="{ revealed: ch !== '_' && ch !== ' ' }">
         {{ ch === '_' ? '_' : ch === ' ' ? ' ' : ch }}
       </span>
-      <span class="length-hint">({{ wordLength }})</span>
+      <span v-if="wordLength" class="length-hint">({{ wordLength }})</span>
     </div>
   </div>
 </template>
