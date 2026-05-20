@@ -294,14 +294,11 @@ watch(
 }
 
 .mobile-tabs {
-  position: fixed;
-  left: .6rem;
-  right: .6rem;
-  bottom: .6rem;
+  position: static;
+  margin-top: .2rem;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: .4rem;
-  z-index: 32;
 }
 .mobile-tabs button {
   background: var(--bg-2);
@@ -324,15 +321,12 @@ watch(
   font-size: .75rem;
 }
 .mobile-panel {
-  position: fixed;
-  left: .6rem;
-  right: .6rem;
-  bottom: 4.2rem;
+  position: static;
   height: 0;
   overflow: hidden;
   opacity: 0;
   transition: all .2s ease;
-  z-index: 31;
+  margin-top: .15rem;
   background: rgba(10, 14, 24, .72);
   backdrop-filter: blur(4px);
   border-radius: 12px;
