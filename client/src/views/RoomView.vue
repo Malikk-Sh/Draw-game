@@ -21,6 +21,7 @@ const store = useGameStore();
 const error = ref('');
 const mobileTab = ref(null);
 const copied = ref(false);
+const fullScreenSupported = ref(false);
 
 const inviteUrl = computed(() => {
   if (typeof window === 'undefined' || !store.room) return '';
@@ -60,7 +61,13 @@ async function joinIfNeeded() {
   });
   if (!res?.ok) {
     error.value = res?.error || 'Не удалось войти в комнату';
+    if ((res?.error || '').includes('заполнена')) {
+      store.lastRoomId = null;
+      router.push('/lobby');
+    }
+    return;
   }
+  store.markJoinedRoom(props.id);
 }
 
 function start() {
@@ -72,6 +79,18 @@ function leave() {
   router.push('/lobby');
 }
 
+async function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    await document.documentElement.requestFullscreen?.();
+  } else {
+    await document.exitFullscreen?.();
+  }
+}
+
+function handleOnline() {
+  if (!store.leftManually && store.lastRoomId === props.id) joinIfNeeded();
+}
+
 async function copyInvite() {
   try {
     await navigator.clipboard.writeText(inviteUrl.value);
@@ -80,9 +99,17 @@ async function copyInvite() {
   } catch (_) {}
 }
 
-onMounted(() => { joinIfNeeded(); });
+onMounted(() => {
+  joinIfNeeded();
+  store.clearManualLeave();
+  fullScreenSupported.value = typeof document !== 'undefined'
+    && !!document.documentElement.requestFullscreen;
+  window.addEventListener('online', handleOnline);
+});
 
-onBeforeUnmount(() => { store.leave(); });
+onBeforeUnmount(() => {
+  window.removeEventListener('online', handleOnline);
+});
 
 watch(
   () => store.connected,
@@ -121,6 +148,11 @@ watch(
           </div>
         </div>
         <div class="header-actions">
+          <button
+            v-if="fullScreenSupported"
+            @click="toggleFullscreen"
+            class="ghost fullscreen-btn"
+          >⛶ Экран</button>
           <button v-if="canStart" @click="start" class="start-btn">▶ Начать игру</button>
           <button v-else-if="store.isHost && store.room.state === 'waiting'" disabled class="ghost">
             Нужно ≥ 2 игроков
@@ -143,11 +175,11 @@ watch(
         </aside>
       </div>
 
-      <nav class="mobile-tabs">
-        <button :class="{ active: mobileTab === 'chat' }" @click="mobileTab = mobileTab === 'chat' ? null : 'chat'">
+      <nav class="mobile-tabs" v-if="store.room">
+        <button v-if="mobileTab !== 'players'" :class="{ active: mobileTab === 'chat' }" @click="mobileTab = mobileTab === 'chat' ? null : 'chat'">
           💬 Чат
         </button>
-        <button :class="{ active: mobileTab === 'players' }" @click="mobileTab = mobileTab === 'players' ? null : 'players'">
+        <button v-if="mobileTab !== 'chat'" :class="{ active: mobileTab === 'players' }" @click="mobileTab = mobileTab === 'players' ? null : 'players'">
           👥 Игроки <span class="count">{{ store.room.players.length }}</span>
         </button>
       </nav>
