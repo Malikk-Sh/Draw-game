@@ -21,7 +21,8 @@ const store = useGameStore();
 const error = ref('');
 const mobileTab = ref(null);
 const copied = ref(false);
-const fullScreenSupported = ref(false);
+const mobileTabsRef = ref(null);
+const mobilePanelRef = ref(null);
 
 const inviteUrl = computed(() => {
   if (typeof window === 'undefined' || !store.room) return '';
@@ -83,6 +84,17 @@ function handleOnline() {
   if (!store.leftManually && store.lastRoomId === props.id) joinIfNeeded();
 }
 
+function closeMobileTabOnOutsideClick(event) {
+  if (!mobileTab.value) return;
+  const tabsEl = mobileTabsRef.value;
+  const panelEl = mobilePanelRef.value;
+  const target = event.target;
+  if (!target || !(target instanceof Node)) return;
+  if (tabsEl?.contains(target)) return;
+  if (panelEl?.contains(target)) return;
+  mobileTab.value = null;
+}
+
 async function copyInvite() {
   try {
     await navigator.clipboard.writeText(inviteUrl.value);
@@ -95,10 +107,12 @@ onMounted(() => {
   joinIfNeeded();
   store.clearManualLeave();
   window.addEventListener('online', handleOnline);
+  document.addEventListener('pointerdown', closeMobileTabOnOutsideClick);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('online', handleOnline);
+  document.removeEventListener('pointerdown', closeMobileTabOnOutsideClick);
 });
 
 watch(
@@ -165,7 +179,7 @@ watch(
         </aside>
       </div>
 
-      <nav class="mobile-tabs" v-if="store.room">
+      <nav class="mobile-tabs" v-if="store.room" ref="mobileTabsRef">
         <button :class="{ active: mobileTab === 'chat' }" @click="mobileTab = mobileTab === 'chat' ? null : 'chat'">
           💬 Чат
         </button>
@@ -173,8 +187,7 @@ watch(
           👥 Игроки <span class="count">{{ store.room.players.length }}</span>
         </button>
       </nav>
-      <div class="mobile-panel" :class="{ open: !!mobileTab }">
-        <button class="mobile-close ghost" @click="mobileTab = null">Закрыть ✕</button>
+      <div class="mobile-panel" :class="{ open: !!mobileTab }" ref="mobilePanelRef">
         <PlayersList v-if="mobileTab === 'players'" />
         <ChatBox v-else-if="mobileTab === 'chat'" />
       </div>
@@ -292,14 +305,15 @@ watch(
 }
 .mobile-tabs button {
   background: var(--bg-2);
-  color: var(--text-dim);
+  color: #3f3123;
   border: 1px solid var(--border);
   min-height: 40px;
   font-size: .95rem;
+  font-weight: 700;
 }
 .mobile-tabs button.active {
   background: var(--primary);
-  color: #2b1d00;
+  color: #fff7e8;
   border-color: var(--primary);
 }
 .count {
@@ -327,11 +341,6 @@ watch(
   height: min(55vh, 420px);
   opacity: 1;
   padding: .4rem;
-}
-.mobile-close {
-  width: 100%;
-  min-height: 34px;
-  margin-bottom: .4rem;
 }
 
 .loading {
