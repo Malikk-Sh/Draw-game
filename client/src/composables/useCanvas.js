@@ -152,8 +152,14 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
       stroke.points.push(pt);
       return true;
     }
-    const minStep = Math.max(0.00035, 0.0015 / Math.max(stroke.size, 1));
-    if (Math.abs(last[0] - pt[0]) < minStep && Math.abs(last[1] - pt[1]) < minStep) return false;
+
+    // Keep more points for smoother curves on quick direction changes.
+    const dx = last[0] - pt[0];
+    const dy = last[1] - pt[1];
+    const dist = Math.hypot(dx, dy);
+    const minStep = Math.max(0.00012, 0.001 / Math.max(stroke.size, 1));
+    if (dist < minStep) return false;
+
     stroke.points.push(pt);
     return true;
   }
@@ -189,7 +195,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     drawStroke(activeStroke);
 
     const now = performance.now();
-    if (now - lastEmitAt > 70 && activeStroke.points.length > 10) {
+    if (now - lastEmitAt > 90 && activeStroke.points.length > 16) {
       flushActiveStroke(false);
       lastEmitAt = now;
     }
@@ -215,11 +221,14 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     };
     socket.emit('game:draw', payload);
     if (!finalize) {
+      // Keep a short tail so next chunk starts with curve context and
+      // remote rendering has fewer visible "kinks" between socket chunks.
+      const tail = activeStroke.points.slice(-3);
       activeStroke = {
         color: activeStroke.color,
         size: activeStroke.size,
         tool: activeStroke.tool,
-        points: [activeStroke.points[activeStroke.points.length - 1]],
+        points: tail.length ? tail : [activeStroke.points[activeStroke.points.length - 1]],
       };
       strokes.push(activeStroke);
     }
