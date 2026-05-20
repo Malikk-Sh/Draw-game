@@ -268,19 +268,19 @@ function leaveCurrentRoom(io, socket) {
   if (!player) return;
   socket.leave(room.id);
   socket.data.roomId = null;
-
   player.isConnected = false;
-  player.disconnectTimer = setTimeout(() => {
-    const latest = room.players.get(socket.id);
-    if (!latest || latest.isConnected) return;
-    const wasDrawer = socket.id === room.drawerId;
-    removePlayer(room, socket.id);
-    io.to(room.id).emit('chat:system', { text: `${player.nickname} покинул комнату` });
-    if (room.players.size === 0) return deleteRoom(room.id);
-    if (wasDrawer && (room.state === 'drawing' || room.state === 'choosing')) endTurn(io, room, 'drawer_left');
-    io.to(room.id).emit('room:state', publicState(room));
-  }, 45000);
-
+  if (player.disconnectTimer) clearTimeout(player.disconnectTimer);
+  player.disconnectTimer = null;
+  const wasDrawer = socket.id === room.drawerId;
+  removePlayer(room, socket.id);
+  io.to(room.id).emit('chat:system', { text: `${player.nickname} покинул комнату` });
+  if (room.players.size === 0) {
+    deleteRoom(room.id);
+    return;
+  }
+  if (wasDrawer && (room.state === 'drawing' || room.state === 'choosing')) {
+    endTurn(io, room, 'drawer_left');
+  }
   io.to(room.id).emit('room:state', publicState(room));
 }
 
