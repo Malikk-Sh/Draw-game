@@ -13,6 +13,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   let ctx = null;
   let dpr = 1;
   let activeStroke = null;
+  let activePointerId = null;
   let activeStrokeId = null;
   let strokeSeq = 0;
   let strokes = [];
@@ -192,8 +193,10 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   function onPointerDown(ev) {
     if (!isDrawer.value) return;
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    if (activePointerId !== null) return;
     ev.preventDefault();
     canvasRef.value.setPointerCapture(ev.pointerId);
+    activePointerId = ev.pointerId;
     // Один физический жест (нажатие указателя -> отпускание указателя) = один идентификатор штриха.
     // Благодаря этому отмена/возврат откатывает весь штрих целиком.
     activeStrokeId = `s${Date.now()}-${strokeSeq++}`;
@@ -214,6 +217,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
 
   function onPointerMove(ev) {
     if (!isDrawer.value || !activeStroke) return;
+    if (ev.pointerId !== activePointerId) return;
     ev.preventDefault();
     const points = getEventPoints(ev);
     let changed = false;
@@ -234,10 +238,12 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
 
   function onPointerUp(ev) {
     if (!isDrawer.value || !activeStroke) return;
+    if (ev.pointerId !== activePointerId) return;
     ev.preventDefault();
     try { canvasRef.value.releasePointerCapture(ev.pointerId); } catch (_) {}
     flushActiveStroke(true);
     activeStroke = null;
+    activePointerId = null;
     refreshCounters();
   }
 

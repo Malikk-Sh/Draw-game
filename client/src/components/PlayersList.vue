@@ -58,6 +58,7 @@ function floatFor(playerId) {
           <div class="tags-row">
             <span v-if="store.room?.drawerId === p.id" class="badge drawer">рисует</span>
             <span v-if="p.hasGuessed && store.room?.state === 'drawing'" class="badge guessed">✓ угадал</span>
+            <span v-if="p.isConnected === false" class="badge offline">offline</span>
           </div>
         </div>
         <div class="score-wrap">

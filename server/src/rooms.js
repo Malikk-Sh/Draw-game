@@ -85,7 +85,7 @@ export function clearAllTimers(room) {
   room.hintTimers = [];
 }
 
-export function addPlayer(room, socketId, nickname) {
+export function addPlayer(room, socketId, nickname, userId = null) {
   if (room.players.has(socketId)) return room.players.get(socketId);
   const player = {
     id: socketId,
@@ -93,6 +93,8 @@ export function addPlayer(room, socketId, nickname) {
     score: 0,
     joinedAt: Date.now(),
     isConnected: true,
+    userId: userId ? String(userId).slice(0, 80) : null,
+    disconnectTimer: null,
   };
   room.players.set(socketId, player);
   if (!room.hostId || !room.players.has(room.hostId)) {
@@ -112,6 +114,14 @@ export function removePlayer(room, socketId) {
   }
   if (room.isPublic) notifyLobby();
   return player;
+}
+
+export function findPlayerByUserId(room, userId) {
+  if (!userId) return null;
+  for (const p of room.players.values()) {
+    if (p.userId === userId) return p;
+  }
+  return null;
 }
 
 export function publicState(room) {
