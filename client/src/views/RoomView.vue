@@ -152,6 +152,11 @@ watch(
           </div>
         </div>
         <div class="header-actions">
+          <button
+            v-if="fullScreenSupported"
+            @click="toggleFullscreen"
+            class="ghost fullscreen-btn"
+          >⛶ Экран</button>
           <button v-if="canStart" @click="start" class="start-btn">▶ Начать игру</button>
           <button v-else-if="store.isHost && store.room.state === 'waiting'" disabled class="ghost">
             Нужно ≥ 2 игроков
@@ -178,7 +183,7 @@ watch(
         <button :class="{ active: mobileTab === 'chat' }" @click="mobileTab = mobileTab === 'chat' ? null : 'chat'">
           💬 Чат
         </button>
-        <button :class="{ active: mobileTab === 'players' }" @click="mobileTab = mobileTab === 'players' ? null : 'players'">
+        <button v-if="mobileTab !== 'chat'" :class="{ active: mobileTab === 'players' }" @click="mobileTab = mobileTab === 'players' ? null : 'players'">
           👥 Игроки <span class="count">{{ store.room.players.length }}</span>
         </button>
       </nav>
