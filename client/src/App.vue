@@ -9,11 +9,31 @@ const route = useRoute();
 onMounted(() => store.init());
 
 const isHome = computed(() => route.name === 'home');
-const canFullscreen = computed(() => typeof document !== 'undefined' && !!document.documentElement.requestFullscreen);
+function getFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+const canFullscreen = computed(() => {
+  if (typeof document === 'undefined') return false;
+  const el = document.documentElement;
+  return Boolean(
+    el.requestFullscreen
+    || el.webkitRequestFullscreen
+    || document.exitFullscreen
+    || document.webkitExitFullscreen,
+  );
+});
 
 async function toggleFullscreen() {
-  if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.();
-  else await document.exitFullscreen?.();
+  const el = document.documentElement;
+  if (!getFullscreenElement()) {
+    if (el.requestFullscreen) await el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } else if (document.exitFullscreen) {
+    await document.exitFullscreen();
+  } else if (document.webkitExitFullscreen) {
+    document.webkitExitFullscreen();
+  }
 }
 </script>
 
