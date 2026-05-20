@@ -186,10 +186,14 @@ onBeforeUnmount(() => {
               <option :value="120">120</option>
             </select>
           </label>
-          <label class="field">
+          <div class="field">
             <span class="muted field-label">Подсказки</span>
-            <input type="checkbox" v-model="settings.hintsEnabled" />
-          </label>
+            <label class="hint-toggle">
+              <input type="checkbox" v-model="settings.hintsEnabled" />
+              <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+              <span class="switch-text">{{ settings.hintsEnabled ? 'Включены' : 'Выключены' }}</span>
+            </label>
+          </div>
           <label class="field">
             <span class="muted field-label">Макс. игроков</span>
             <select v-model.number="settings.maxPlayers">
@@ -346,6 +350,50 @@ onBeforeUnmount(() => {
   font-size: 1.05rem;
   padding: .85rem;
   background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+}
+.hint-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  min-height: 44px;
+}
+.hint-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+.switch-track {
+  width: 48px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  transition: background .2s ease, border-color .2s ease;
+}
+.switch-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff7eb;
+  box-shadow: 0 1px 4px rgba(0,0,0,.2);
+  transition: transform .2s ease;
+}
+.hint-toggle input:checked + .switch-track {
+  background: rgba(46, 139, 87, 0.25);
+  border-color: var(--success);
+}
+.hint-toggle input:checked + .switch-track .switch-thumb {
+  transform: translateX(20px);
+  background: #f2ffec;
+}
+.switch-text {
+  font-size: .9rem;
+  font-weight: 600;
 }
 .error {
   color: var(--danger);

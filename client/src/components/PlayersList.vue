@@ -74,7 +74,8 @@ function floatFor(playerId) {
 
 <style scoped>
 .players-card {
-  background: var(--surface);
+  background: rgba(255, 250, 242, 0.84);
+  backdrop-filter: blur(6px);
   border-radius: var(--radius);
   padding: .8rem;
 }
