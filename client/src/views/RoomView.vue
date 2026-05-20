@@ -21,6 +21,8 @@ const store = useGameStore();
 const error = ref('');
 const mobileTab = ref(null);
 const copied = ref(false);
+const mobileTabsRef = ref(null);
+const mobilePanelRef = ref(null);
 
 const inviteUrl = computed(() => {
   if (typeof window === 'undefined' || !store.room) return '';
@@ -60,7 +62,13 @@ async function joinIfNeeded() {
   });
   if (!res?.ok) {
     error.value = res?.error || 'Не удалось войти в комнату';
+    if ((res?.error || '').includes('заполнена')) {
+      store.lastRoomId = null;
+      router.push('/lobby');
+    }
+    return;
   }
+  store.markJoinedRoom(props.id);
 }
 
 function start() {
@@ -72,6 +80,21 @@ function leave() {
   router.push('/lobby');
 }
 
+function handleOnline() {
+  if (!store.leftManually && store.lastRoomId === props.id) joinIfNeeded();
+}
+
+function closeMobileTabOnOutsideClick(event) {
+  if (!mobileTab.value) return;
+  const tabsEl = mobileTabsRef.value;
+  const panelEl = mobilePanelRef.value;
+  const target = event.target;
+  if (!target || !(target instanceof Node)) return;
+  if (tabsEl?.contains(target)) return;
+  if (panelEl?.contains(target)) return;
+  mobileTab.value = null;
+}
+
 async function copyInvite() {
   try {
     await navigator.clipboard.writeText(inviteUrl.value);
@@ -80,9 +103,17 @@ async function copyInvite() {
   } catch (_) {}
 }
 
-onMounted(() => { joinIfNeeded(); });
+onMounted(() => {
+  joinIfNeeded();
+  store.clearManualLeave();
+  window.addEventListener('online', handleOnline);
+  document.addEventListener('pointerdown', closeMobileTabOnOutsideClick);
+});
 
-onBeforeUnmount(() => { store.leave(); });
+onBeforeUnmount(() => {
+  window.removeEventListener('online', handleOnline);
+  document.removeEventListener('pointerdown', closeMobileTabOnOutsideClick);
+});
 
 watch(
   () => store.connected,
@@ -143,7 +174,7 @@ watch(
         </aside>
       </div>
 
-      <nav class="mobile-tabs">
+      <nav class="mobile-tabs" v-if="store.room" ref="mobileTabsRef">
         <button :class="{ active: mobileTab === 'chat' }" @click="mobileTab = mobileTab === 'chat' ? null : 'chat'">
           💬 Чат
         </button>
@@ -151,9 +182,9 @@ watch(
           👥 Игроки <span class="count">{{ store.room.players.length }}</span>
         </button>
       </nav>
-      <div class="mobile-panel" :class="{ open: !!mobileTab }">
+      <div class="mobile-panel" :class="{ open: !!mobileTab }" ref="mobilePanelRef">
         <PlayersList v-if="mobileTab === 'players'" />
-        <ChatBox v-else />
+        <ChatBox v-else-if="mobileTab === 'chat'" />
       </div>
 
       <WordChoiceModal />
@@ -258,22 +289,26 @@ watch(
 }
 
 .mobile-tabs {
-  display: block;
-  margin-top: .2rem;
+  position: fixed;
+  left: .6rem;
+  right: .6rem;
+  bottom: .6rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .4rem;
+  z-index: 32;
 }
 .mobile-tabs button {
-  display: block;
-  width: 100%;
   background: var(--bg-2);
-  color: var(--text-dim);
+  color: #3f3123;
   border: 1px solid var(--border);
   min-height: 40px;
   font-size: .95rem;
-  margin-bottom: .4rem;
+  font-weight: 700;
 }
 .mobile-tabs button.active {
   background: var(--primary);
-  color: #2b1d00;
+  color: #fff7e8;
   border-color: var(--primary);
 }
 .count {
@@ -287,12 +322,12 @@ watch(
   position: fixed;
   left: .6rem;
   right: .6rem;
-  bottom: 3.6rem;
+  bottom: 4.2rem;
   height: 0;
   overflow: hidden;
   opacity: 0;
   transition: all .2s ease;
-  z-index: 29;
+  z-index: 31;
   background: rgba(10, 14, 24, .72);
   backdrop-filter: blur(4px);
   border-radius: 12px;
@@ -300,6 +335,7 @@ watch(
 .mobile-panel.open {
   height: min(55vh, 420px);
   opacity: 1;
+  padding: .4rem;
 }
 
 .loading {

@@ -74,7 +74,8 @@ watch(
 .chat-box {
   display: flex;
   flex-direction: column;
-  background: var(--surface);
+  background: rgba(255, 250, 242, 0.84);
+  backdrop-filter: blur(6px);
   border-radius: var(--radius);
   height: 100%;
   min-height: 240px;

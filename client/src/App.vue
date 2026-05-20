@@ -9,6 +9,32 @@ const route = useRoute();
 onMounted(() => store.init());
 
 const isHome = computed(() => route.name === 'home');
+function getFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+const canFullscreen = computed(() => {
+  if (typeof document === 'undefined') return false;
+  const el = document.documentElement;
+  return Boolean(
+    el.requestFullscreen
+    || el.webkitRequestFullscreen
+    || document.exitFullscreen
+    || document.webkitExitFullscreen,
+  );
+});
+
+async function toggleFullscreen() {
+  const el = document.documentElement;
+  if (!getFullscreenElement()) {
+    if (el.requestFullscreen) await el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } else if (document.exitFullscreen) {
+    await document.exitFullscreen();
+  } else if (document.webkitExitFullscreen) {
+    document.webkitExitFullscreen();
+  }
+}
 </script>
 
 <template>
@@ -20,6 +46,7 @@ const isHome = computed(() => route.name === 'home');
       <span class="dot"></span>
       <span class="label">{{ store.connected ? 'онлайн' : 'переподключение...' }}</span>
     </div>
+    <button v-if="canFullscreen" class="ghost fs-toggle" @click="toggleFullscreen">⛶</button>
   </header>
   <router-view />
 </template>
@@ -51,5 +78,10 @@ const isHome = computed(() => route.name === 'home');
 }
 @media (max-width: 480px) {
   .status .label { display: none; }
+  .fs-toggle {
+    min-height: 34px;
+    padding: .25rem .55rem;
+    font-size: 1rem;
+  }
 }
 </style>
