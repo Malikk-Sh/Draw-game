@@ -223,7 +223,7 @@ const sizes = [2, 5, 10, 18, 28];
 }
 .action-btn.active {
   background: var(--primary);
-  color: white;
+  color: #2b1d00;
 }
 .action-btn.danger {
   background: rgba(255, 107, 107, 0.15);
@@ -231,7 +231,7 @@ const sizes = [2, 5, 10, 18, 28];
 }
 .action-btn.danger:hover:not(:disabled) {
   background: var(--danger);
-  color: white;
+  color: #2b1d00;
 }
 .action-btn .ico {
   font-size: 1.05rem;

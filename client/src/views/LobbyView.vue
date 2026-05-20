@@ -320,7 +320,7 @@ onBeforeUnmount(() => {
 }
 .visibility-toggle button.active {
   background: var(--primary);
-  color: white;
+  color: #2b1d00;
 }
 .vis-help {
   font-size: .82rem;

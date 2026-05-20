@@ -267,7 +267,7 @@ watch(
 }
 .mobile-tabs button.active {
   background: var(--primary);
-  color: white;
+  color: #2b1d00;
   border-color: var(--primary);
 }
 .count {

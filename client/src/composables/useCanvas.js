@@ -2,14 +2,19 @@ import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { getSocket } from './useSocket.js';
 
 export function useCanvas(canvasRef, { isDrawer, store }) {
+  // Текущие настройки инструмента, которыми управляет UI (палитра/размер/ластик).
   const color = ref('#1a1a1a');
   const size = ref(4);
   const tool = ref('brush');
+  // Счётчики для состояния кнопок "отменить/вернуть".
   const undoCount = ref(0);
   const redoCount = ref(0);
+  // Внутреннее состояние рендера холста.
   let ctx = null;
   let dpr = 1;
   let activeStroke = null;
+  let activeStrokeId = null;
+  let strokeSeq = 0;
   let strokes = [];
   let redoStack = [];
   let resizeObserver = null;
@@ -19,6 +24,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     if (!canvas) return;
     ctx = canvas.getContext('2d');
     resize();
+    // Устанавливаем сглаживание концов и углов линий, чтобы штрихи выглядели естественно.
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
   }
@@ -27,6 +33,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     const canvas = canvasRef.value;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
+    // Рисуем в физических пикселях устройства для чёткости на Retina/HiDPI экранах.
     dpr = window.devicePixelRatio || 1;
     canvas.width = Math.floor(rect.width * dpr);
     canvas.height = Math.floor(rect.height * dpr);
@@ -37,6 +44,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   function clearScreen() {
     const canvas = canvasRef.value;
     if (!ctx || !canvas) return;
+    // Сбрасываем трансформацию, чтобы очищать всю физическую область холста.
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#ffffff';
@@ -51,6 +59,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     const w = rect.width;
     const h = rect.height;
     if (stroke.tool === 'eraser') {
+      // Ластик реализован как "прозрачная кисть": вырезаем пиксели из текущего слоя.
       ctx.globalCompositeOperation = 'destination-out';
       ctx.strokeStyle = 'rgba(0,0,0,1)';
     } else {
@@ -85,23 +94,34 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   }
 
   function redraw() {
+    // Полный перерендер нужен после событий полной замены, отмены/возврата и изменения размера.
     clearScreen();
     for (const s of strokes) drawStroke(s);
   }
 
+  // Отмена/возврат должны работать на уровне "жеста пользователя",
+  // а не на уровне сетевых чанков одного и того же штриха.
+  function countUniqueStrokeIds(list) {
+    const ids = new Set();
+    for (const s of list) ids.add(s.strokeId || '__legacy__');
+    return ids.size;
+  }
+
   function refreshCounters() {
-    undoCount.value = strokes.length;
-    redoCount.value = redoStack.length;
+    undoCount.value = countUniqueStrokeIds(strokes);
+    redoCount.value = countUniqueStrokeIds(redoStack);
   }
 
   function applyEvents(events) {
     let changed = false;
     for (const e of events) {
       if (e.kind === 'replace') {
+        // Событие полной замены приходит после отмены/очистки/ресинхронизации: заменяем локальную историю целиком.
         strokes = [...e.strokes];
         redoStack = [];
         changed = true;
       } else if (e.kind === 'add') {
+        // Событие добавления — это инкрементальный дорисованный кусок удалённого штриха.
         strokes.push(e.stroke);
         drawStroke(e.stroke);
       }
@@ -113,6 +133,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   let rafScheduled = false;
   function scheduleSync() {
     if (rafScheduled) return;
+    // Склеиваем пачку входящих сокет-событий в один кадр, чтобы не рендерить слишком часто.
     rafScheduled = true;
     requestAnimationFrame(() => {
       rafScheduled = false;
@@ -123,6 +144,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
 
   watch(() => store.pendingNewStrokes.length, scheduleSync);
   watch(() => store.clearSignal, () => {
+    // Отдельный сигнал очистки нужен, чтобы мгновенно сбрасывать локальный буфер.
     strokes = [];
     redoStack = [];
     redraw();
@@ -140,6 +162,8 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   let lastEmitAt = 0;
 
   function getEventPoints(ev) {
+    // На поддерживаемых браузерах берём объединённые события указателя:
+    // это даёт более плотный и плавный путь пера при быстром движении.
     if (typeof ev.getCoalescedEvents !== 'function') return [getRelativePoint(ev)];
     const batch = ev.getCoalescedEvents();
     if (!batch || batch.length === 0) return [getRelativePoint(ev)];
@@ -152,8 +176,15 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
       stroke.points.push(pt);
       return true;
     }
-    const minStep = Math.max(0.00035, 0.0015 / Math.max(stroke.size, 1));
-    if (Math.abs(last[0] - pt[0]) < minStep && Math.abs(last[1] - pt[1]) < minStep) return false;
+
+    // Чем меньше порог минимального шага, тем больше "живых" точек сохраняем в кривой.
+    // Это уменьшает угловатость на быстрых поворотах.
+    const dx = last[0] - pt[0];
+    const dy = last[1] - pt[1];
+    const dist = Math.hypot(dx, dy);
+    const minStep = Math.max(0.00008, 0.0008 / Math.max(stroke.size, 1));
+    if (dist < minStep) return false;
+
     stroke.points.push(pt);
     return true;
   }
@@ -163,7 +194,11 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
     ev.preventDefault();
     canvasRef.value.setPointerCapture(ev.pointerId);
+    // Один физический жест (нажатие указателя -> отпускание указателя) = один идентификатор штриха.
+    // Благодаря этому отмена/возврат откатывает весь штрих целиком.
+    activeStrokeId = `s${Date.now()}-${strokeSeq++}`;
     activeStroke = {
+      strokeId: activeStrokeId,
       color: color.value,
       size: size.value,
       tool: tool.value,
@@ -189,7 +224,9 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     drawStroke(activeStroke);
 
     const now = performance.now();
-    if (now - lastEmitAt > 70 && activeStroke.points.length > 10) {
+    // Периодически отправляем текущий штрих кусками:
+    // это снижает задержку у других игроков при длинной линии.
+    if (now - lastEmitAt > 55 && activeStroke.points.length > 6) {
       flushActiveStroke(false);
       lastEmitAt = now;
     }
@@ -208,6 +245,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     if (!activeStroke || activeStroke.points.length === 0) return;
     const socket = getSocket();
     const payload = {
+      strokeId: activeStroke.strokeId || activeStrokeId,
       color: activeStroke.color,
       size: activeStroke.size,
       tool: activeStroke.tool,
@@ -215,11 +253,15 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     };
     socket.emit('game:draw', payload);
     if (!finalize) {
+      // Оставляем "хвост" последних точек, чтобы следующий чанк
+      // продолжал кривую без видимого излома на стыке.
+      const tail = activeStroke.points.slice(-2);
       activeStroke = {
+        strokeId: activeStroke.strokeId || activeStrokeId,
         color: activeStroke.color,
         size: activeStroke.size,
         tool: activeStroke.tool,
-        points: [activeStroke.points[activeStroke.points.length - 1]],
+        points: tail.length ? tail : [activeStroke.points[activeStroke.points.length - 1]],
       };
       strokes.push(activeStroke);
     }
@@ -236,8 +278,14 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
 
   function undo() {
     if (!isDrawer.value || strokes.length === 0) return;
-    const popped = strokes.pop();
-    redoStack.push(popped);
+    const targetId = strokes[strokes.length - 1].strokeId || '__legacy__';
+    // Переносим в стек возврата все чанки последнего идентификатора штриха одним действием.
+    while (strokes.length) {
+      const top = strokes[strokes.length - 1];
+      const topId = top.strokeId || '__legacy__';
+      if (topId !== targetId) break;
+      redoStack.push(strokes.pop());
+    }
     redraw();
     refreshCounters();
     getSocket().emit('game:undo');
@@ -245,9 +293,20 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
 
   function redo() {
     if (!isDrawer.value || redoStack.length === 0) return;
-    const stroke = redoStack.pop();
-    strokes.push(stroke);
-    drawStroke(stroke);
+    const targetId = redoStack[redoStack.length - 1].strokeId || '__legacy__';
+    const recovered = [];
+    // Возвращаем все чанки одного идентификатора штриха в исходном порядке.
+    while (redoStack.length) {
+      const top = redoStack[redoStack.length - 1];
+      const topId = top.strokeId || '__legacy__';
+      if (topId !== targetId) break;
+      recovered.push(redoStack.pop());
+    }
+    recovered.reverse();
+    for (const stroke of recovered) {
+      strokes.push(stroke);
+      drawStroke(stroke);
+    }
     refreshCounters();
     getSocket().emit('game:redo');
   }
@@ -265,6 +324,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     const meta = ev.ctrlKey || ev.metaKey;
     if (!meta) return;
     const key = ev.key.toLowerCase();
+    // Горячие клавиши: Ctrl/Cmd+Z и Ctrl/Cmd+Y (или Cmd+Shift+Z на macOS).
     if (key === 'z' && !ev.shiftKey) {
       ev.preventDefault();
       undo();
@@ -318,3 +378,4 @@ function clamp01(v) {
   if (v > 1) return 1;
   return v;
 }
+    // Все точки приходят нормализованными (0..1), масштабируем их в текущий размер холста.
