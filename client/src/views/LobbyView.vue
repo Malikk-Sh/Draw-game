@@ -13,7 +13,7 @@ const busy = ref(false);
 const error = ref('');
 const roomName = ref('');
 const visibility = ref('public');
-const settings = ref({ rounds: 3, turnSec: 80, hintsCount: 2, maxPlayers: 8 });
+const settings = ref({ rounds: 3, turnSec: 80, hintsEnabled: true, maxPlayers: 8 });
 const joinCode = ref('');
 
 let pollTimer = null;
@@ -33,6 +33,7 @@ async function createRoom() {
   try {
     const res = await emitAck('room:create', {
       nickname: userStore.nickname,
+      userId: userStore.ensureUserId(),
       name: roomName.value.trim(),
       isPublic: visibility.value === 'public',
       settings: settings.value,
@@ -53,7 +54,11 @@ async function join(id) {
   busy.value = true;
   error.value = '';
   try {
-    const res = await emitAck('room:join', { roomId: id, nickname: userStore.nickname });
+    const res = await emitAck('room:join', {
+      roomId: id,
+      nickname: userStore.nickname,
+      userId: userStore.ensureUserId(),
+    });
     if (res?.ok) router.push(`/room/${res.roomId}`);
     else error.value = res?.error || 'Не удалось войти';
   } catch (_) {
@@ -182,13 +187,8 @@ onBeforeUnmount(() => {
             </select>
           </label>
           <label class="field">
-            <span class="muted field-label">Подсказок</span>
-            <select v-model.number="settings.hintsCount">
-              <option :value="0">0</option>
-              <option :value="1">1</option>
-              <option :value="2">2</option>
-              <option :value="3">3</option>
-            </select>
+            <span class="muted field-label">Подсказки</span>
+            <input type="checkbox" v-model="settings.hintsEnabled" />
           </label>
           <label class="field">
             <span class="muted field-label">Макс. игроков</span>

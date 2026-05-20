@@ -2,6 +2,7 @@ import {
   addPlayer,
   createRoom,
   deleteRoom,
+  findPlayerByUserId,
   getRoom,
   listPublicRooms,
   publicState,
@@ -22,7 +23,7 @@ const MAX_CHAT = 200;
 const DEFAULT_SETTINGS = {
   rounds: 3,
   turnSec: 80,
-  hintsCount: 2,
+  hintsEnabled: true,
   maxPlayers: 8,
 };
 
@@ -30,7 +31,7 @@ function sanitizeSettings(input = {}) {
   const s = { ...DEFAULT_SETTINGS, ...input };
   s.rounds = clamp(parseInt(s.rounds, 10) || 3, 1, 10);
   s.turnSec = clamp(parseInt(s.turnSec, 10) || 80, 30, 180);
-  s.hintsCount = clamp(parseInt(s.hintsCount, 10) || 2, 0, 4);
+  s.hintsEnabled = Boolean(s.hintsEnabled);
   s.maxPlayers = clamp(parseInt(s.maxPlayers, 10) || 8, 2, 12);
   return s;
 }
@@ -53,6 +54,7 @@ export function registerSocketHandlers(io) {
 
   io.on('connection', (socket) => {
     socket.data.roomId = null;
+    socket.data.userId = null;
 
     socket.on('lobby:list', (cb) => {
       safeCb(cb, { rooms: listPublicRooms() });
@@ -67,7 +69,7 @@ export function registerSocketHandlers(io) {
       socket.leave('lobby');
     });
 
-    socket.on('room:create', ({ nickname, name, isPublic, settings } = {}, cb) => {
+    socket.on('room:create', ({ nickname, name, isPublic, settings, userId } = {}, cb) => {
       const nick = sanitizeNick(nickname);
       const settingsClean = sanitizeSettings(settings);
       const room = createRoom({
@@ -77,24 +79,25 @@ export function registerSocketHandlers(io) {
         hostId: socket.id,
         hostNickname: nick,
       });
-      joinSocketToRoom(socket, room, nick);
+      joinSocketToRoom(socket, room, nick, userId);
       io.to(room.id).emit('room:state', publicState(room));
       safeCb(cb, { ok: true, roomId: room.id });
     });
 
-    socket.on('room:join', ({ roomId, nickname } = {}, cb) => {
+    socket.on('room:join', ({ roomId, nickname, userId } = {}, cb) => {
       const id = String(roomId || '').trim().toUpperCase();
       const roomLookup = getRoom(id) || getRoom(String(roomId || '').trim());
       if (!roomLookup) {
         safeCb(cb, { ok: false, error: 'Комната не найдена' });
         return;
       }
-      if (roomLookup.players.size >= roomLookup.settings.maxPlayers) {
+      const existing = findPlayerByUserId(roomLookup, userId);
+      if (!existing && roomLookup.players.size >= roomLookup.settings.maxPlayers) {
         safeCb(cb, { ok: false, error: 'Комната заполнена' });
         return;
       }
       const nick = sanitizeNick(nickname);
-      joinSocketToRoom(socket, roomLookup, nick);
+      joinSocketToRoom(socket, roomLookup, nick, userId);
       io.to(roomLookup.id).emit('room:state', publicState(roomLookup));
       safeCb(cb, { ok: true, roomId: roomLookup.id });
     });
@@ -228,10 +231,29 @@ export function registerSocketHandlers(io) {
   });
 }
 
-function joinSocketToRoom(socket, room, nickname) {
+function joinSocketToRoom(socket, room, nickname, userId) {
+  const existing = findPlayerByUserId(room, userId);
+  if (existing && existing.id !== socket.id) {
+    const oldId = existing.id;
+    existing.id = socket.id;
+    existing.nickname = nickname;
+    existing.isConnected = true;
+    if (existing.disconnectTimer) clearTimeout(existing.disconnectTimer);
+    existing.disconnectTimer = null;
+    room.players.delete(oldId);
+    room.players.set(socket.id, existing);
+    if (room.hostId === oldId) room.hostId = socket.id;
+    if (room.drawerId === oldId) room.drawerId = socket.id;
+    if (room.guessedBy.has(oldId)) {
+      room.guessedBy.delete(oldId);
+      room.guessedBy.add(socket.id);
+    }
+  } else {
+    addPlayer(room, socket.id, nickname, userId);
+  }
   socket.join(room.id);
   socket.data.roomId = room.id;
-  addPlayer(room, socket.id, nickname);
+  socket.data.userId = userId || null;
 }
 
 function currentRoom(socket) {
@@ -242,23 +264,22 @@ function currentRoom(socket) {
 function leaveCurrentRoom(io, socket) {
   const room = currentRoom(socket);
   if (!room) return;
-  const wasDrawer = socket.id === room.drawerId;
-  const player = removePlayer(room, socket.id);
+  const player = room.players.get(socket.id);
+  if (!player) return;
   socket.leave(room.id);
   socket.data.roomId = null;
 
-  if (player) {
+  player.isConnected = false;
+  player.disconnectTimer = setTimeout(() => {
+    const latest = room.players.get(socket.id);
+    if (!latest || latest.isConnected) return;
+    const wasDrawer = socket.id === room.drawerId;
+    removePlayer(room, socket.id);
     io.to(room.id).emit('chat:system', { text: `${player.nickname} покинул комнату` });
-  }
-
-  if (room.players.size === 0) {
-    deleteRoom(room.id);
-    return;
-  }
-
-  if (wasDrawer && (room.state === 'drawing' || room.state === 'choosing')) {
-    endTurn(io, room, 'drawer_left');
-  }
+    if (room.players.size === 0) return deleteRoom(room.id);
+    if (wasDrawer && (room.state === 'drawing' || room.state === 'choosing')) endTurn(io, room, 'drawer_left');
+    io.to(room.id).emit('room:state', publicState(room));
+  }, 45000);
 
   io.to(room.id).emit('room:state', publicState(room));
 }

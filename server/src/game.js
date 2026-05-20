@@ -6,7 +6,7 @@ import {
 } from './rooms.js';
 import { normalize, randomWords, levenshtein } from './words.js';
 
-const CHOOSING_MS = 15000;
+const CHOOSING_MS = 20000;
 const ROUND_END_MS = 5000;
 const POINTS_BASE = 100;
 const POINTS_PER_SECOND_LEFT = 2;
@@ -73,7 +73,7 @@ export function nextTurn(io, room) {
 
   room.choosingTimer = setTimeout(() => {
     if (room.state !== 'choosing') return;
-    chooseWord(io, room, choices[0]);
+    endTurn(io, room, 'no_word_chosen');
   }, CHOOSING_MS);
 }
 
@@ -108,7 +108,10 @@ export function chooseWord(io, room, word) {
 }
 
 function scheduleHints(io, room) {
-  const hintsCount = Math.min(room.settings.hintsCount || 2, room.currentWord.length - 1);
+  if (!room.settings.hintsEnabled) return;
+  const lettersCount = room.currentWord.split('').filter((ch) => ch !== ' ' && ch !== '-').length;
+  const targetReveal = Math.max(1, Math.floor((lettersCount * 2) / 3));
+  const hintsCount = Math.min(targetReveal, room.currentWord.length - 1);
   if (hintsCount <= 0) return;
   for (let i = 1; i <= hintsCount; i++) {
     const at = Math.floor((room.turnDurationMs * i) / (hintsCount + 1));
