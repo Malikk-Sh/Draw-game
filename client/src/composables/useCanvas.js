@@ -250,6 +250,14 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     refreshCounters();
   }
 
+  function onLostPointerCapture() {
+    if (!isDrawer.value || !activeStroke) return;
+    flushActiveStroke(true);
+    activeStroke = null;
+    activePointerId = null;
+    refreshCounters();
+  }
+
   function flushActiveStroke(finalize) {
     if (!activeStroke || activeStroke.points.length === 0) return;
     const socket = getSocket();
