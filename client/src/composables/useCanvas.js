@@ -194,7 +194,6 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     if (!isDrawer.value) return;
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
     if (activePointerId !== null) return;
-    ev.preventDefault();
     canvasRef.value.setPointerCapture(ev.pointerId);
     activePointerId = ev.pointerId;
     // Один физический жест (нажатие указателя -> отпускание указателя) = один идентификатор штриха.
@@ -218,7 +217,6 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   function onPointerMove(ev) {
     if (!isDrawer.value || !activeStroke) return;
     if (ev.pointerId !== activePointerId) return;
-    ev.preventDefault();
     const points = getEventPoints(ev);
     let changed = false;
     for (const pt of points) {
