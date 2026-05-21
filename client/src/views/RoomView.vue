@@ -180,10 +180,10 @@ watch(
       </div>
 
       <nav class="mobile-tabs" v-if="store.room" ref="mobileTabsRef">
-        <button :class="{ active: mobileTab === 'chat' }" @click="mobileTab = mobileTab === 'chat' ? null : 'chat'">
+        <button :class="{ active: mobileTab === 'chat' }" @pointerdown.stop="mobileTab = mobileTab === 'chat' ? null : 'chat'">
           💬 Чат
         </button>
-        <button v-if="mobileTab !== 'chat'" :class="{ active: mobileTab === 'players' }" @click="mobileTab = mobileTab === 'players' ? null : 'players'">
+        <button v-if="mobileTab !== 'chat'" :class="{ active: mobileTab === 'players' }" @pointerdown.stop="mobileTab = mobileTab === 'players' ? null : 'players'">
           👥 Игроки <span class="count">{{ store.room.players.length }}</span>
         </button>
       </nav>
@@ -208,6 +208,7 @@ watch(
 <style scoped>
 .room {
   padding: .7rem;
+  padding-bottom: calc(46px + 1.6rem + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: .7rem;
@@ -294,11 +295,15 @@ watch(
 }
 
 .mobile-tabs {
-  position: static;
-  margin-top: .2rem;
+  position: fixed;
+  left: .7rem;
+  right: .7rem;
+  bottom: max(.6rem, env(safe-area-inset-bottom));
+  margin-top: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: .4rem;
+  z-index: 70;
 }
 .mobile-tabs button {
   background: var(--bg-2);
@@ -321,20 +326,26 @@ watch(
   font-size: .75rem;
 }
 .mobile-panel {
-  position: static;
-  height: 0;
-  overflow: hidden;
+  position: fixed;
+  left: .7rem;
+  right: .7rem;
+  bottom: calc(max(.6rem, env(safe-area-inset-bottom)) + 46px + .45rem);
+  height: min(55vh, 420px);
   opacity: 0;
-  transition: all .2s ease;
-  margin-top: .15rem;
+  transform: translateY(calc(100% + .8rem));
+  pointer-events: none;
+  transition: transform .22s ease, opacity .18s ease;
   background: rgba(10, 14, 24, .72);
   backdrop-filter: blur(4px);
   border-radius: 12px;
+  padding: .4rem;
+  overflow: hidden;
+  z-index: 69;
 }
 .mobile-panel.open {
-  height: min(55vh, 420px);
   opacity: 1;
-  padding: .4rem;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .loading {
