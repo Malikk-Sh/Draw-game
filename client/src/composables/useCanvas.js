@@ -194,7 +194,6 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     if (!isDrawer.value) return;
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
     if (activePointerId !== null) return;
-    canvasRef.value.setPointerCapture(ev.pointerId);
     activePointerId = ev.pointerId;
     // Один физический жест (нажатие указателя -> отпускание указателя) = один идентификатор штриха.
     // Благодаря этому отмена/возврат откатывает весь штрих целиком.
@@ -237,7 +236,14 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   function onPointerUp(ev) {
     if (!isDrawer.value || !activeStroke) return;
     if (ev.pointerId !== activePointerId) return;
-    try { canvasRef.value.releasePointerCapture(ev.pointerId); } catch (_) {}
+    flushActiveStroke(true);
+    activeStroke = null;
+    activePointerId = null;
+    refreshCounters();
+  }
+
+  function onLostPointerCapture() {
+    if (!isDrawer.value || !activeStroke) return;
     flushActiveStroke(true);
     activeStroke = null;
     activePointerId = null;
@@ -352,7 +358,6 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerup', onPointerUp);
     canvas.addEventListener('pointercancel', onPointerUp);
-    canvas.addEventListener('pointerleave', onPointerUp);
     canvas.addEventListener('lostpointercapture', onLostPointerCapture);
     window.addEventListener('resize', resize);
     window.addEventListener('keydown', onKeyDown);
@@ -370,7 +375,6 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointercancel', onPointerUp);
-      canvas.removeEventListener('pointerleave', onPointerUp);
       canvas.removeEventListener('lostpointercapture', onLostPointerCapture);
     }
     window.removeEventListener('resize', resize);
