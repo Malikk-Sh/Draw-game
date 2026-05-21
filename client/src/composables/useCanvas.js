@@ -1,6 +1,8 @@
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { getSocket } from './useSocket.js';
 
+const CANVAS_BACKGROUND = '#eaf0ff';
+
 export function useCanvas(canvasRef, { isDrawer, store }) {
   // Текущие настройки инструмента, которыми управляет UI (палитра/размер/ластик).
   const color = ref('#1a1a1a');
@@ -48,7 +50,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     // Сбрасываем трансформацию, чтобы очищать всю физическую область холста.
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = CANVAS_BACKGROUND;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
   }
