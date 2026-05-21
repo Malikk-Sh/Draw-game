@@ -239,8 +239,15 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
   function onPointerUp(ev) {
     if (!isDrawer.value || !activeStroke) return;
     if (ev.pointerId !== activePointerId) return;
-    ev.preventDefault();
     try { canvasRef.value.releasePointerCapture(ev.pointerId); } catch (_) {}
+    flushActiveStroke(true);
+    activeStroke = null;
+    activePointerId = null;
+    refreshCounters();
+  }
+
+  function onLostPointerCapture() {
+    if (!isDrawer.value || !activeStroke) return;
     flushActiveStroke(true);
     activeStroke = null;
     activePointerId = null;
@@ -348,6 +355,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     canvas.addEventListener('pointerup', onPointerUp);
     canvas.addEventListener('pointercancel', onPointerUp);
     canvas.addEventListener('pointerleave', onPointerUp);
+    canvas.addEventListener('lostpointercapture', onLostPointerCapture);
     window.addEventListener('resize', resize);
     window.addEventListener('keydown', onKeyDown);
     if (typeof ResizeObserver !== 'undefined') {
@@ -365,6 +373,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointercancel', onPointerUp);
       canvas.removeEventListener('pointerleave', onPointerUp);
+      canvas.removeEventListener('lostpointercapture', onLostPointerCapture);
     }
     window.removeEventListener('resize', resize);
     window.removeEventListener('keydown', onKeyDown);
