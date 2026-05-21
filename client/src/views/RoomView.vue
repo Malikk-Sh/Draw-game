@@ -180,10 +180,10 @@ watch(
       </div>
 
       <nav class="mobile-tabs" v-if="store.room" ref="mobileTabsRef">
-        <button :class="{ active: mobileTab === 'chat' }" @click="mobileTab = mobileTab === 'chat' ? null : 'chat'">
+        <button :class="{ active: mobileTab === 'chat' }" @pointerdown.stop="mobileTab = mobileTab === 'chat' ? null : 'chat'">
           💬 Чат
         </button>
-        <button v-if="mobileTab !== 'chat'" :class="{ active: mobileTab === 'players' }" @click="mobileTab = mobileTab === 'players' ? null : 'players'">
+        <button v-if="mobileTab !== 'chat'" :class="{ active: mobileTab === 'players' }" @pointerdown.stop="mobileTab = mobileTab === 'players' ? null : 'players'">
           👥 Игроки <span class="count">{{ store.room.players.length }}</span>
         </button>
       </nav>
