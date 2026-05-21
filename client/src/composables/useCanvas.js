@@ -1,7 +1,7 @@
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { getSocket } from './useSocket.js';
 
-const CANVAS_BACKGROUND = '#eaf0ff';
+const CANVAS_BACKGROUND = '#F4EFE5';
 
 export function useCanvas(canvasRef, { isDrawer, store }) {
   // Текущие настройки инструмента, которыми управляет UI (палитра/размер/ластик).
