@@ -19,33 +19,9 @@
 - **Backend:** Node.js, Express, Socket.IO.
 - **Хостинг:** Render.com (один Web Service раздаёт фронт и держит WebSocket).
 
-## Локальная разработка
-
-Требуется Node.js 20+.
-
-```bash
-# Установка зависимостей (root + client + server)
-npm install
-
-# Разработка (server на :3000, Vite dev-сервер на :5173 с прокси WS)
-npm run dev
-# Открыть http://localhost:5173
-
-# Прод-сборка и запуск как на хостинге
-npm run build
-npm start
-# Открыть http://localhost:3000
-```
-
-## Деплой на Render.com
-
-1. Запушить репозиторий на GitHub.
-2. В Render: **New → Blueprint → Connect repository**.
-3. Render автоматически прочитает `render.yaml` и развернёт сервис.
-4. Через 2–3 минуты будет доступен URL вида `https://draw-game.onrender.com`.
-
-> **Free tier:** сервис засыпает после 15 минут неактивности.
-> Первый запрос «будит» его (~30 секунд).
+## Ссылка на игру
+https://draw-game-elvq.onrender.com
+#https://draw-game-elvq.onrender.com
 
 ## Структура
 
@@ -54,7 +30,3 @@ client/   # Vue 3 SPA
 server/   # Express + Socket.IO
 render.yaml
 ```
-
-## Лицензия
-
-MIT
