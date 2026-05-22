@@ -32,7 +32,7 @@ function play() {
           <span class="muted field-lbl">Как тебя зовут?</span>
           <input
             v-model="nickname"
-            placeholder="Например, Аня"
+            placeholder="Введите имя"
             maxlength="20"
             @keydown.enter="play"
             autocomplete="off"
