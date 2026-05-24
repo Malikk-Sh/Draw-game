@@ -23,6 +23,8 @@ const mobileTab = ref(null);
 const copied = ref(false);
 const mobileTabsRef = ref(null);
 const mobilePanelRef = ref(null);
+const toastMessages = ref([]);
+const MESSAGE_LIFETIME_MS = 3000;
 
 const inviteUrl = computed(() => {
   if (typeof window === 'undefined' || !store.room) return '';
@@ -115,10 +117,34 @@ onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', closeMobileTabOnOutsideClick);
 });
 
+function enqueueToastMessage(msg) {
+  const id = `${Date.now()}-${Math.random()}`;
+  const toast = {
+    id,
+    nickname: msg.nickname,
+    text: msg.text,
+  };
+  toastMessages.value.push(toast);
+  setTimeout(() => {
+    toastMessages.value = toastMessages.value.filter((item) => item.id !== id);
+  }, MESSAGE_LIFETIME_MS);
+}
+
 watch(
   () => store.connected,
   (c) => {
     if (c) joinIfNeeded();
+  },
+);
+
+watch(
+  () => store.messages.length,
+  (length, prevLength) => {
+    if (!store.isDrawer || store.room?.state !== 'drawing') return;
+    if (!length || length === prevLength) return;
+    const msg = store.messages[length - 1];
+    if (!msg || msg.kind !== 'message' || !msg.nickname || !msg.text) return;
+    enqueueToastMessage(msg);
   },
 );
 </script>
@@ -175,9 +201,16 @@ watch(
           <DrawingCanvas />
         </section>
         <aside class="grid-chat">
-          <ChatBox />
+          <ChatBox :is-active="true" />
         </aside>
       </div>
+
+      <TransitionGroup name="guess-toast" tag="div" class="guess-toasts" v-if="toastMessages.length">
+        <div v-for="msg in toastMessages" :key="msg.id" class="guess-toast-item">
+          <span class="toast-author">{{ msg.nickname }}</span>
+          <span class="toast-text">{{ msg.text }}</span>
+        </div>
+      </TransitionGroup>
 
       <nav class="mobile-tabs" v-if="store.room" ref="mobileTabsRef">
         <button :class="{ active: mobileTab === 'chat' }" @pointerdown.stop="mobileTab = mobileTab === 'chat' ? null : 'chat'">
@@ -189,7 +222,7 @@ watch(
       </nav>
       <div class="mobile-panel" :class="{ open: !!mobileTab }" ref="mobilePanelRef">
         <PlayersList v-if="mobileTab === 'players'" />
-        <ChatBox v-else-if="mobileTab === 'chat'" />
+        <ChatBox v-else-if="mobileTab === 'chat'" :is-active="mobileTab === 'chat'" />
       </div>
 
       <WordChoiceModal />
@@ -348,6 +381,48 @@ watch(
   pointer-events: auto;
 }
 
+.guess-toasts {
+  position: fixed;
+  left: .7rem;
+  right: .7rem;
+  bottom: calc(max(.6rem, env(safe-area-inset-bottom)) + 46px + .6rem + min(55vh, 420px));
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  z-index: 72;
+  pointer-events: none;
+}
+.guess-toast-item {
+  background: rgba(15, 22, 37, .86);
+  border: 1px solid rgba(141, 225, 255, .35);
+  border-radius: 12px;
+  padding: .5rem .65rem;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, .24);
+}
+.toast-author {
+  font-size: .76rem;
+  font-weight: 700;
+  color: #7fd6ff;
+}
+.toast-text {
+  color: #f7fbff;
+  font-size: .9rem;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.guess-toast-enter-active,
+.guess-toast-leave-active {
+  transition: opacity .28s ease, transform .28s ease;
+}
+.guess-toast-enter-from,
+.guess-toast-leave-to {
+  opacity: 0;
+  transform: translateY(14px) scale(.97);
+}
+
 .loading {
   display: flex;
   align-items: center;
@@ -374,6 +449,12 @@ watch(
   .grid-chat {
     height: 70vh;
     max-height: 760px;
+  }
+  .guess-toasts {
+    left: calc(240px + 1rem + .8rem);
+    right: calc(320px + 1rem + .8rem);
+    bottom: 1.3rem;
+    max-width: none;
   }
   .mobile-tabs, .mobile-panel { display: none; }
 }
