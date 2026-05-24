@@ -1,11 +1,22 @@
 <script setup>
-import { ref, nextTick, watch, computed } from 'vue';
+import { ref, nextTick, watch, computed, onMounted } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import { getSocket } from '../composables/useSocket';
 
 const store = useGameStore();
+const props = defineProps({
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+});
 const text = ref('');
 const listRef = ref(null);
+
+function scrollToLatest() {
+  if (!listRef.value) return;
+  listRef.value.scrollTop = listRef.value.scrollHeight;
+}
 
 function send() {
   const t = text.value.trim();
@@ -24,11 +35,23 @@ watch(
   () => store.messages.length,
   async () => {
     await nextTick();
-    if (listRef.value) {
-      listRef.value.scrollTop = listRef.value.scrollHeight;
-    }
+    scrollToLatest();
   },
 );
+
+watch(
+  () => props.isActive,
+  async (isActive) => {
+    if (!isActive) return;
+    await nextTick();
+    scrollToLatest();
+  },
+);
+
+onMounted(async () => {
+  await nextTick();
+  scrollToLatest();
+});
 </script>
 
 <template>
