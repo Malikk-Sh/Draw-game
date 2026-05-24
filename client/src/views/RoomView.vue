@@ -24,6 +24,8 @@ const copied = ref(false);
 const mobileTabsRef = ref(null);
 const mobilePanelRef = ref(null);
 const guessOverlayItems = ref([]);
+const guessOverlayTimeouts = new Map();
+const MAX_GUESS_OVERLAY_ITEMS = 4;
 
 const inviteUrl = computed(() => {
   if (typeof window === 'undefined' || !store.room) return '';
@@ -108,9 +110,27 @@ function queueGuessOverlay(message) {
     kind: message.kind,
   });
 
-  setTimeout(() => {
+  if (guessOverlayItems.value.length > MAX_GUESS_OVERLAY_ITEMS) {
+    const dropped = guessOverlayItems.value.shift();
+    if (dropped && guessOverlayTimeouts.has(dropped.id)) {
+      clearTimeout(guessOverlayTimeouts.get(dropped.id));
+      guessOverlayTimeouts.delete(dropped.id);
+    }
+  }
+
+  const timeoutId = setTimeout(() => {
     guessOverlayItems.value = guessOverlayItems.value.filter((item) => item.id !== id);
+    guessOverlayTimeouts.delete(id);
   }, 3000);
+  guessOverlayTimeouts.set(id, timeoutId);
+}
+
+function clearGuessOverlay() {
+  for (const timeoutId of guessOverlayTimeouts.values()) {
+    clearTimeout(timeoutId);
+  }
+  guessOverlayTimeouts.clear();
+  guessOverlayItems.value = [];
 }
 
 async function copyInvite() {
@@ -131,6 +151,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('online', handleOnline);
   document.removeEventListener('pointerdown', closeMobileTabOnOutsideClick);
+  clearGuessOverlay();
 });
 
 watch(
@@ -152,7 +173,7 @@ watch(
 watch(
   () => store.room?.state,
   (state) => {
-    if (state !== 'drawing') guessOverlayItems.value = [];
+    if (state !== 'drawing') clearGuessOverlay();
   },
 );
 </script>
