@@ -23,6 +23,9 @@ const mobileTab = ref(null);
 const copied = ref(false);
 const mobileTabsRef = ref(null);
 const mobilePanelRef = ref(null);
+const guessOverlayItems = ref([]);
+const guessOverlayTimeouts = new Map();
+const MAX_GUESS_OVERLAY_ITEMS = 4;
 
 const inviteUrl = computed(() => {
   if (typeof window === 'undefined' || !store.room) return '';
@@ -95,6 +98,41 @@ function closeMobileTabOnOutsideClick(event) {
   mobileTab.value = null;
 }
 
+function queueGuessOverlay(message) {
+  if (!store.isDrawer || store.room?.state !== 'drawing') return;
+  if (!message || !['message', 'guessed'].includes(message.kind)) return;
+
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  guessOverlayItems.value.push({
+    id,
+    nickname: message.nickname,
+    text: message.text,
+    kind: message.kind,
+  });
+
+  if (guessOverlayItems.value.length > MAX_GUESS_OVERLAY_ITEMS) {
+    const dropped = guessOverlayItems.value.shift();
+    if (dropped && guessOverlayTimeouts.has(dropped.id)) {
+      clearTimeout(guessOverlayTimeouts.get(dropped.id));
+      guessOverlayTimeouts.delete(dropped.id);
+    }
+  }
+
+  const timeoutId = setTimeout(() => {
+    guessOverlayItems.value = guessOverlayItems.value.filter((item) => item.id !== id);
+    guessOverlayTimeouts.delete(id);
+  }, 3000);
+  guessOverlayTimeouts.set(id, timeoutId);
+}
+
+function clearGuessOverlay() {
+  for (const timeoutId of guessOverlayTimeouts.values()) {
+    clearTimeout(timeoutId);
+  }
+  guessOverlayTimeouts.clear();
+  guessOverlayItems.value = [];
+}
+
 async function copyInvite() {
   try {
     await navigator.clipboard.writeText(inviteUrl.value);
@@ -113,12 +151,29 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('online', handleOnline);
   document.removeEventListener('pointerdown', closeMobileTabOnOutsideClick);
+  clearGuessOverlay();
 });
 
 watch(
   () => store.connected,
   (c) => {
     if (c) joinIfNeeded();
+  },
+);
+
+watch(
+  () => store.messages.length,
+  (len, prevLen) => {
+    if (!len || len === prevLen) return;
+    const latest = store.messages[len - 1];
+    queueGuessOverlay(latest);
+  },
+);
+
+watch(
+  () => store.room?.state,
+  (state) => {
+    if (state !== 'drawing') clearGuessOverlay();
   },
 );
 </script>
@@ -173,6 +228,17 @@ watch(
           <WordDisplay />
           <TurnTimer />
           <DrawingCanvas />
+          <transition-group name="guess-overlay" tag="div" class="guess-overlay" v-if="guessOverlayItems.length">
+            <div
+              v-for="item in guessOverlayItems"
+              :key="item.id"
+              class="guess-overlay-item"
+              :class="item.kind"
+            >
+              <strong>{{ item.nickname }}:</strong>
+              <span>{{ item.text }}</span>
+            </div>
+          </transition-group>
         </section>
         <aside class="grid-chat">
           <ChatBox />
@@ -292,6 +358,54 @@ watch(
   display: flex;
   flex-direction: column;
   gap: .4rem;
+  position: relative;
+}
+
+.guess-overlay {
+  position: absolute;
+  left: .7rem;
+  right: .7rem;
+  bottom: .7rem;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  pointer-events: none;
+  z-index: 12;
+}
+
+.guess-overlay-item {
+  align-self: flex-start;
+  max-width: min(92%, 420px);
+  background: rgba(28, 22, 16, 0.78);
+  color: #fff7e8;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-left: 4px solid var(--primary);
+  border-radius: 10px;
+  padding: .45rem .65rem;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+  display: flex;
+  gap: .4rem;
+  font-size: .88rem;
+}
+
+.guess-overlay-item.guessed {
+  border-left-color: var(--success);
+  background: rgba(25, 72, 53, 0.8);
+}
+
+.guess-overlay-enter-active,
+.guess-overlay-leave-active {
+  transition: all .28s ease;
+}
+
+.guess-overlay-enter-from,
+.guess-overlay-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.guess-overlay-move {
+  transition: transform .25s ease;
 }
 
 .mobile-tabs {

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, nextTick, watch, computed } from 'vue';
+import { ref, nextTick, watch, computed, onMounted } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import { getSocket } from '../composables/useSocket';
 
@@ -29,6 +29,13 @@ watch(
     }
   },
 );
+
+onMounted(async () => {
+  await nextTick();
+  if (listRef.value) {
+    listRef.value.scrollTop = listRef.value.scrollHeight;
+  }
+});
 </script>
 
 <template>
