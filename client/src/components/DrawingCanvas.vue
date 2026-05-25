@@ -130,6 +130,7 @@ const sizes = [2, 5, 10, 18, 28];
   display: flex;
   flex-direction: column;
   gap: .5rem;
+  min-height: 0;
 }
 .overlay-content {
   text-align: center;
@@ -236,6 +237,18 @@ const sizes = [2, 5, 10, 18, 28];
 .action-btn .ico {
   font-size: 1.05rem;
   line-height: 1;
+}
+@media (min-width: 900px) {
+  .canvas-toolbar {
+    position: sticky;
+    bottom: .75rem;
+    z-index: 20;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: .45rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+  }
 }
 @media (max-width: 480px) {
   .action-btn .lbl { display: none; }
