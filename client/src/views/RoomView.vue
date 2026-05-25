@@ -439,7 +439,11 @@ watch(
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (min-width: 900px) {
-  .room { padding: 1rem; gap: 1rem; }
+  .room {
+    padding: 1rem;
+    padding-bottom: 1rem;
+    gap: 1rem;
+  }
   .game-grid {
     grid-template-columns: 240px 1fr 320px;
     align-items: start;
@@ -457,5 +461,6 @@ watch(
     max-width: none;
   }
   .mobile-tabs, .mobile-panel { display: none; }
+  .guess-toasts { display: none; }
 }
 </style>

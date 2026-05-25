@@ -26,6 +26,8 @@ export function listPublicRooms() {
       name: room.name,
       playersCount: room.players.size,
       maxPlayers: room.settings.maxPlayers,
+      turnSec: room.settings.turnSec,
+      hintsEnabled: room.settings.hintsEnabled,
       state: room.state,
     });
   }

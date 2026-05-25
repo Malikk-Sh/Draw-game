@@ -112,6 +112,10 @@ onBeforeUnmount(() => {
               <div class="muted room-meta">
                 <span>👥 {{ r.playersCount }} / {{ r.maxPlayers }}</span>
                 <span class="dot">·</span>
+                <span>⏱ {{ r.turnSec }}с</span>
+                <span class="dot">·</span>
+                <span>{{ r.hintsEnabled ? '💡 подсказки вкл' : '💡 подсказки выкл' }}</span>
+                <span class="dot">·</span>
                 <span :class="r.state === 'waiting' ? 'tag-wait' : 'tag-play'">
                   {{ r.state === 'waiting' ? 'ожидает' : 'идёт игра' }}
                 </span>
