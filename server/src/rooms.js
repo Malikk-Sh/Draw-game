@@ -61,6 +61,7 @@ export function createRoom({ name, isPublic, settings, hostId, hostNickname }) {
     strokes: [],
     redoStack: [],
     recentWords: [],
+    turnChatActivity: new Set(),
     settings,
   };
   rooms.set(id, room);
@@ -97,6 +98,9 @@ export function addPlayer(room, socketId, nickname, userId = null) {
     isConnected: true,
     userId: userId ? String(userId).slice(0, 80) : null,
     disconnectTimer: null,
+    correctStreak: 0,
+    afkTurns: 0,
+    lastGuessPoints: 0,
   };
   room.players.set(socketId, player);
   if (!room.hostId || !room.players.has(room.hostId)) {

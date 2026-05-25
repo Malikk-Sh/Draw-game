@@ -8,10 +8,16 @@ import { normalize, randomWords, levenshtein } from './words.js';
 
 const CHOOSING_MS = 20000;
 const ROUND_END_MS = 5000;
-const POINTS_BASE = 100;
-const POINTS_PER_SECOND_LEFT = 2;
-const POINTS_FIRST_BONUS = 50;
-const POINTS_DRAWER_PER_GUESS = 50;
+const POINTS_FIRST_BONUS = 20;
+const POINTS_LIGHTNING_BONUS = 25;
+const STREAK_3_BONUS = 25;
+const STREAK_5_BONUS = 50;
+const DRAWER_BASE_IF_GUESSED = 40;
+const DRAWER_SHARE = 0.25;
+const DRAWER_CAP_MULT = 1.3;
+const DRAWER_IDEAL_BONUS = 30;
+const DRAWER_AFK_PENALTY = 30;
+const GUESSER_AFK_PENALTY = 10;
 
 export function canStart(room) {
   return room.state === 'waiting' && room.players.size >= 2;
@@ -37,6 +43,7 @@ export function nextTurn(io, room) {
   room.currentWord = null;
   room.wordMask = [];
   room.hintsRevealed = 0;
+  room.turnChatActivity = new Set();
 
   const order = room.drawerOrder.filter((id) => room.players.has(id));
   if (order.length < 2) {
@@ -87,6 +94,7 @@ export function chooseWord(io, room, word) {
   room.currentWord = word;
   room.wordMask = word.split('').map((ch) => ch === ' ' || ch === '-');
   room.hintsRevealed = 0;
+  room.turnChatActivity = new Set();
   room.state = 'drawing';
   room.turnStartedAt = Date.now();
   room.recentWords.push(word);
@@ -153,15 +161,20 @@ export function handleGuess(io, room, socketId, text) {
     const guesser = room.players.get(socketId);
     if (!guesser) return { kind: 'idle' };
 
-    const elapsedSec = Math.floor((Date.now() - room.turnStartedAt) / 1000);
-    const totalSec = Math.floor(room.turnDurationMs / 1000);
-    const remainSec = Math.max(0, totalSec - elapsedSec);
-    let gained = POINTS_BASE + remainSec * POINTS_PER_SECOND_LEFT;
+    const elapsedMs = Math.max(0, Date.now() - room.turnStartedAt);
+    const totalMs = Math.max(1, room.turnDurationMs);
+    const remainMs = Math.max(0, totalMs - elapsedMs);
+    const basePoints = basePointsForTurn(totalMs);
+    const timeCoef = 0.4 + (0.6 * remainMs) / totalMs;
+    let gained = Math.round(basePoints * timeCoef);
     if (room.guessedBy.size === 1) gained += POINTS_FIRST_BONUS;
-    guesser.score += gained;
+    if (elapsedMs <= totalMs * 0.15) gained += POINTS_LIGHTNING_BONUS;
 
-    const drawer = room.players.get(room.drawerId);
-    if (drawer) drawer.score += POINTS_DRAWER_PER_GUESS;
+    guesser.correctStreak = (guesser.correctStreak || 0) + 1;
+    if (guesser.correctStreak === 3) gained += STREAK_3_BONUS;
+    if (guesser.correctStreak === 5) gained += STREAK_5_BONUS;
+    guesser.lastGuessPoints = gained;
+    guesser.score += gained;
 
     io.to(room.id).emit('chat:system', {
       text: `${guesser.nickname} угадал слово! (+${gained})`,
@@ -170,7 +183,7 @@ export function handleGuess(io, room, socketId, text) {
     io.to(room.id).emit('game:correctGuess', {
       playerId: socketId,
       gainedPoints: gained,
-      drawerBonus: POINTS_DRAWER_PER_GUESS,
+      drawerBonus: 0,
       scores: scoresMap(room),
     });
 
@@ -191,6 +204,7 @@ export function handleGuess(io, room, socketId, text) {
 
 export function endTurn(io, room, reason) {
   clearAllTimers(room);
+  if (room.state === 'drawing') applyTurnEconomy(room, reason);
   if (room.state === 'round_end' || room.state === 'waiting') return;
   const word = room.currentWord;
   room.state = 'round_end';
@@ -245,6 +259,41 @@ function scoresMap(room) {
   return out;
 }
 
+
+function applyTurnEconomy(room, reason) {
+  const drawer = room.players.get(room.drawerId);
+  const guessers = Array.from(room.guessedBy).map((id) => room.players.get(id)).filter(Boolean);
+
+  if (drawer) {
+    if (guessers.length > 0) {
+      const bestGuesser = Math.max(...guessers.map((p) => p.lastGuessPoints || 0));
+      const share = guessers.reduce((acc, p) => acc + Math.round((p.lastGuessPoints || 0) * DRAWER_SHARE), 0);
+      let drawerGain = DRAWER_BASE_IF_GUESSED + share;
+      drawerGain = Math.min(drawerGain, Math.round(bestGuesser * DRAWER_CAP_MULT));
+      const totalGuessers = Math.max(1, room.players.size - 1);
+      if (guessers.length / totalGuessers >= 0.7) drawerGain += DRAWER_IDEAL_BONUS;
+      drawer.score += drawerGain;
+    } else if (reason === 'timeout' && room.strokes.length === 0) {
+      drawer.score -= DRAWER_AFK_PENALTY;
+    }
+  }
+
+  for (const p of room.players.values()) {
+    if (p.id === room.drawerId) continue;
+    const guessed = room.guessedBy.has(p.id);
+    const wasActive = room.turnChatActivity && room.turnChatActivity.has(p.id);
+    if (!guessed) p.correctStreak = 0;
+    if (!wasActive) p.afkTurns = (p.afkTurns || 0) + 1;
+    else p.afkTurns = 0;
+    if (!guessed && !wasActive && p.afkTurns >= 2 && p.isConnected) p.score -= GUESSER_AFK_PENALTY;
+    p.lastGuessPoints = 0;
+  }
+}
+
+function basePointsForTurn(totalMs) {
+  const sec = Math.round(totalMs / 1000);
+  return sec + 60;
+}
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
