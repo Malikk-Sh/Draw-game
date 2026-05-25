@@ -195,6 +195,11 @@ export function registerSocketHandlers(io) {
       const raw = String(text || '').slice(0, MAX_CHAT).trim();
       if (!raw) return;
 
+      if (room.state === 'drawing' && socket.id !== room.drawerId) {
+        if (!room.turnChatActivity) room.turnChatActivity = new Set();
+        room.turnChatActivity.add(socket.id);
+      }
+
       if (room.state === 'drawing' && socket.id !== room.drawerId && !room.guessedBy.has(socket.id)) {
         const result = handleGuess(io, room, socket.id, raw);
         if (result.kind === 'correct') return;
