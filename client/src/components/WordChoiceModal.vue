@@ -49,7 +49,7 @@ function choose(word) {
       <div class="modal choose-modal">
         <h2 style="margin:0 0 .25rem">Выбери слово для рисования</h2>
         <p class="muted" style="margin:0 0 .8rem">
-          Осталось <b>{{ remainSec }}</b> сек. Если не выберешь — возьмём первое.
+          Осталось <b>{{ remainSec }}</b> сек. Если не выберешь — очередь рисовать перейдёт к следующему игроку.
         </p>
         <div class="timer-bar"><div class="fill" :style="{ width: remainPct + '%' }"></div></div>
         <div class="choices">
