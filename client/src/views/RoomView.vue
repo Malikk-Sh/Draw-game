@@ -95,10 +95,13 @@ onMounted(() => {
   joinIfNeeded();
   store.clearManualLeave();
   window.addEventListener('online', handleOnline);
+  // Фиксируем высоту приложения по видимой области только на экране комнаты.
+  document.getElementById('app')?.classList.add('kb-lock');
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('online', handleOnline);
+  document.getElementById('app')?.classList.remove('kb-lock');
 });
 
 function enqueueToastMessage(msg) {
@@ -279,11 +282,13 @@ watch(
   display: flex;
   flex-direction: column;
   gap: .35rem;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .zone-chat {
-  flex: 1 1 auto;
-  min-height: 132px;
+  flex: 0 1 auto;
+  min-height: 92px;
+  max-height: calc(var(--vvh, 100dvh) * 0.30);
   display: flex;
 }
 .zone-chat :deep(.chat-box) { height: 100%; width: 100%; }
@@ -302,7 +307,7 @@ watch(
   }
   .pl-strip { grid-area: strip; }
   .zone-canvas { grid-area: canvas; min-height: 0; }
-  .zone-chat { grid-area: chat; min-height: 0; }
+  .zone-chat { grid-area: chat; min-height: 0; max-height: none; }
 }
 
 /* Десктоп: 3 колонки, полный список игроков */

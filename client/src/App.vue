@@ -1,12 +1,37 @@
 <script setup>
-import { onMounted, computed } from 'vue';
+import { onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useGameStore } from './stores/gameStore';
 
 const store = useGameStore();
 const route = useRoute();
 
-onMounted(() => store.init());
+// Держим в --vvh текущую видимую высоту (visualViewport), чтобы при появлении
+// мобильной клавиатуры раскладка ужималась в видимую область, а не скроллилась.
+function updateViewportHeight() {
+  const h = (typeof window !== 'undefined' && window.visualViewport)
+    ? window.visualViewport.height
+    : (typeof window !== 'undefined' ? window.innerHeight : 0);
+  if (h) document.documentElement.style.setProperty('--vvh', `${Math.round(h)}px`);
+}
+
+onMounted(() => {
+  store.init();
+  updateViewportHeight();
+  window.addEventListener('resize', updateViewportHeight);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateViewportHeight);
+    window.visualViewport.addEventListener('scroll', updateViewportHeight);
+  }
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateViewportHeight);
+  if (window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', updateViewportHeight);
+    window.visualViewport.removeEventListener('scroll', updateViewportHeight);
+  }
+});
 
 const isHome = computed(() => route.name === 'home');
 function getFullscreenElement() {
