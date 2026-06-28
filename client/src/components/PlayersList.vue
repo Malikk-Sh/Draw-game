@@ -34,7 +34,7 @@ function floatFor(playerId) {
       <span>Игроки</span>
       <span class="muted players-count">{{ players.length }}</span>
     </h3>
-    <ul class="players">
+    <TransitionGroup tag="ul" name="player" class="players">
       <li
         v-for="(p, idx) in players"
         :key="p.id"
@@ -68,7 +68,7 @@ function floatFor(playerId) {
           </transition-group>
         </div>
       </li>
-    </ul>
+    </TransitionGroup>
   </div>
 </template>
 
@@ -221,4 +221,16 @@ function floatFor(playerId) {
 .float-leave-from { opacity: 1; }
 .float-leave-to { opacity: 0; }
 .badge.host { background: var(--accent); color: #2b1d00; padding: 0 .35rem; }
+
+/* Плавная пересортировка строк при смене очков (FLIP) */
+.player-move {
+  transition: transform .45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.player-enter-active {
+  transition: opacity .3s ease, transform .3s ease;
+}
+.player-enter-from {
+  opacity: 0;
+  transform: translateY(-8px);
+}
 </style>

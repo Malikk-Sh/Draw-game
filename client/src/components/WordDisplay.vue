@@ -75,6 +75,12 @@ const wordLength = computed(() => {
 .letter.revealed {
   opacity: 1;
   color: var(--accent);
+  animation: letter-pop .35s ease-out;
+}
+@keyframes letter-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25); }
+  100% { transform: scale(1); }
 }
 .length-hint {
   font-size: .85rem;

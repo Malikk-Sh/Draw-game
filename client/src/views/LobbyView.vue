@@ -106,7 +106,7 @@ onBeforeUnmount(() => {
           🎈 Пока пусто. Создай первую комнату или войди по коду!
         </p>
         <ul v-else class="rooms-list">
-          <li v-for="r in rooms" :key="r.id" class="room-item">
+          <li v-for="(r, i) in rooms" :key="r.id" class="room-item" :style="{ animationDelay: (i * 0.04) + 's' }">
             <div class="room-info">
               <div class="room-name">{{ r.name }}</div>
               <div class="muted room-meta">
@@ -274,6 +274,11 @@ onBeforeUnmount(() => {
   gap: .6rem;
   border: 1px solid transparent;
   transition: border-color .15s, transform .1s;
+  animation: room-in .3s ease-out backwards;
+}
+@keyframes room-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .room-item:hover {
   border-color: var(--primary);
