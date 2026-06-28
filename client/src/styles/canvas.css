@@ -86,8 +86,27 @@
   100% { opacity: 0; }
 }
 
-@media (max-width: 600px) {
+/* Телефон портрет: крупный квадрат, ограниченный по высоте, чтобы под ним
+   помещался постоянный чат-док. */
+@media (max-width: 599px) {
   .canvas-wrap {
     aspect-ratio: 1 / 1;
+    width: min(100%, 46vh);
+    margin-inline: auto;
+  }
+}
+
+/* Планшет / телефон в ландшафте: холст заполняет ячейку рядом с чатом. */
+@media (min-width: 600px) and (max-width: 899px),
+       (orientation: landscape) and (max-height: 600px) {
+  .canvas-block {
+    flex: 1;
+    min-height: 0;
+  }
+  .canvas-wrap {
+    aspect-ratio: auto;
+    flex: 1;
+    height: 100%;
+    min-height: 0;
   }
 }

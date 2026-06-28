@@ -84,7 +84,10 @@ onMounted(async () => {
         :disabled="store.isDrawer"
         maxlength="200"
         autocomplete="off"
+        autocapitalize="off"
         spellcheck="false"
+        enterkeyhint="send"
+        inputmode="text"
       />
       <button type="submit" :disabled="store.isDrawer || !text.trim()" aria-label="Отправить">
         ➤
@@ -101,7 +104,7 @@ onMounted(async () => {
   backdrop-filter: blur(6px);
   border-radius: var(--radius);
   height: 100%;
-  min-height: 240px;
+  min-height: 0;
   overflow: hidden;
 }
 .chat-list {
