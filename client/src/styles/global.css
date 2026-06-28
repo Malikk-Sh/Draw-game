@@ -54,6 +54,12 @@ html, body {
   overflow: hidden;
 }
 
+/* На телефоне в комнате прячем глобальную шапку-логотип — освобождаем высоту
+   под холст (логотип/статус не нужны во время партии). */
+@media (max-width: 599px) {
+  #app.kb-lock .app-header { display: none; }
+}
+
 button {
   font-family: inherit;
   font-size: 1rem;

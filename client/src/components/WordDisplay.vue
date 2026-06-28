@@ -90,7 +90,9 @@ const wordLength = computed(() => {
   text-transform: none;
   color: var(--text-dim);
 }
-@media (max-width: 480px) {
-  .word { font-size: 1.25rem; }
+@media (max-width: 600px) {
+  .word-display { padding: 0; }
+  .subtitle { font-size: .7rem; margin-bottom: .1rem; }
+  .word { font-size: 1.2rem; letter-spacing: .1em; }
 }
 </style>

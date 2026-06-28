@@ -287,8 +287,8 @@ watch(
 }
 .zone-chat {
   flex: 0 1 auto;
-  min-height: 92px;
-  max-height: calc(var(--vvh, 100dvh) * 0.30);
+  min-height: 84px;
+  max-height: calc(var(--vvh, 100dvh) * 0.20);
   display: flex;
 }
 .zone-chat :deep(.chat-box) { height: 100%; width: 100%; }
@@ -331,7 +331,16 @@ watch(
 /* На узких экранах прячем текстовые подписи кнопок шапки */
 @media (max-width: 560px) {
   .header-actions .btn-lbl { display: none; }
-  .header-actions button { padding: .4rem .6rem; }
+  .header-actions button { padding: .4rem .6rem; min-height: 34px; }
+}
+
+/* Компактная шапка комнаты на телефоне — освобождаем высоту под холст. */
+@media (max-width: 599px) {
+  .room { gap: .4rem; }
+  .room-header { padding: .4rem .6rem; gap: .4rem; }
+  .room-name { font-size: .9rem; margin-bottom: .15rem; }
+  .invite-code { display: none; }
+  .header-tags { gap: .25rem; }
 }
 
 /* Короткий ландшафт (телефон боком): максимально сжать шапку под холст+чат */
