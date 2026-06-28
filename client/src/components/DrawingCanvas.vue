@@ -71,7 +71,7 @@ const sizes = [2, 5, 10, 18, 28];
     </div>
 
     <div v-if="isDrawer && store.room?.state === 'drawing'" class="canvas-toolbar">
-      <div class="tools-row">
+      <div class="toolbar-main">
         <div class="colors-grid">
           <button
             v-for="c in colors"
@@ -83,55 +83,56 @@ const sizes = [2, 5, 10, 18, 28];
             @click="setColor(c)"
           />
         </div>
-        <div class="divider" />
-        <div class="sizes-row">
-          <button
-            v-for="s in sizes"
-            :key="s"
-            class="size-btn"
-            :class="{ active: size === s }"
-            :aria-label="'Размер ' + s"
-            @click="setSize(s)"
-          >
-            <span class="dot" :style="{
-              width: Math.min(22, Math.max(4, s)) + 'px',
-              height: Math.min(22, Math.max(4, s)) + 'px',
-              background: tool === 'eraser' ? '#888' : color
-            }"></span>
-          </button>
+        <div class="tools-col">
+          <div class="sizes-row">
+            <button
+              v-for="s in sizes"
+              :key="s"
+              class="size-btn"
+              :class="{ active: size === s }"
+              :aria-label="'Размер ' + s"
+              @click="setSize(s)"
+            >
+              <span class="dot" :style="{
+                width: Math.min(22, Math.max(4, s)) + 'px',
+                height: Math.min(22, Math.max(4, s)) + 'px',
+                background: tool === 'eraser' ? '#888' : color
+              }"></span>
+            </button>
+          </div>
+          <div class="actions-row">
+            <button
+              class="action-btn"
+              :class="{ active: tool === 'eraser' }"
+              @click="setTool(tool === 'eraser' ? 'brush' : 'eraser')"
+              aria-label="Ластик"
+              title="Ластик"
+            >
+              <span class="ico">🩹</span><span class="lbl">Ластик</span>
+            </button>
+            <button
+              class="action-btn"
+              :disabled="undoCount === 0"
+              @click="undo"
+              aria-label="Отменить (Ctrl+Z)"
+              title="Отменить (Ctrl+Z)"
+            >
+              <span class="ico">↶</span><span class="lbl">Отменить</span>
+            </button>
+            <button
+              class="action-btn"
+              :disabled="redoCount === 0"
+              @click="redo"
+              aria-label="Вернуть (Ctrl+Y)"
+              title="Вернуть (Ctrl+Y)"
+            >
+              <span class="ico">↷</span><span class="lbl">Вернуть</span>
+            </button>
+            <button class="action-btn danger" @click="clearCanvas" aria-label="Очистить" title="Очистить">
+              <span class="ico">🗑</span><span class="lbl">Очистить</span>
+            </button>
+          </div>
         </div>
-      </div>
-
-      <div class="actions-row">
-        <button
-          class="action-btn"
-          :class="{ active: tool === 'eraser' }"
-          @click="setTool(tool === 'eraser' ? 'brush' : 'eraser')"
-          aria-label="Ластик"
-        >
-          <span class="ico">🩹</span><span class="lbl">Ластик</span>
-        </button>
-        <button
-          class="action-btn"
-          :disabled="undoCount === 0"
-          @click="undo"
-          aria-label="Отменить (Ctrl+Z)"
-          title="Отменить (Ctrl+Z)"
-        >
-          <span class="ico">↶</span><span class="lbl">Отменить</span>
-        </button>
-        <button
-          class="action-btn"
-          :disabled="redoCount === 0"
-          @click="redo"
-          aria-label="Вернуть (Ctrl+Y)"
-          title="Вернуть (Ctrl+Y)"
-        >
-          <span class="ico">↷</span><span class="lbl">Вернуть</span>
-        </button>
-        <button class="action-btn danger" @click="clearCanvas" aria-label="Очистить">
-          <span class="ico">🗑</span><span class="lbl">Очистить</span>
-        </button>
       </div>
     </div>
   </div>
@@ -163,32 +164,36 @@ const sizes = [2, 5, 10, 18, 28];
 }
 .overlay-enter-from, .overlay-leave-to { opacity: 0; }
 
-.tools-row, .actions-row {
+/* Десктоп/планшет: палитра сверху, под ней размеры + действия в один ряд. */
+.toolbar-main {
   display: flex;
-  gap: .4rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.actions-row {
-  margin-top: .35rem;
+  flex-direction: column;
+  gap: .5rem;
 }
 .colors-grid {
   display: flex;
   flex-wrap: wrap;
   gap: .3rem;
-  flex: 1 1 auto;
   align-content: flex-start;
 }
-.divider {
-  width: 1px;
-  height: 28px;
-  background: var(--border);
-  margin: 0 .15rem;
+.tools-col {
+  display: flex;
+  flex-direction: row;
+  gap: .6rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
 }
 .sizes-row {
   display: flex;
-  gap: .25rem;
+  gap: .3rem;
+  flex-wrap: wrap;
   flex: 0 0 auto;
+}
+.actions-row {
+  display: flex;
+  gap: .3rem;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
 }
 .size-btn {
   background: var(--bg-3);
@@ -259,20 +264,26 @@ const sizes = [2, 5, 10, 18, 28];
   }
 }
 @media (max-width: 600px) {
-  /* Палитра — отдельным блоком на всю ширину с переносом (все цвета видны),
-     ряд размеров — отдельной строкой под ней. */
-  .tools-row { flex-direction: column; align-items: stretch; gap: .4rem; }
-  .divider { display: none; }
-  .colors-grid { justify-content: space-between; }
-  .sizes-row { justify-content: space-between; }
-  /* Крупнее тач-цели для пальца */
-  .color-btn { width: 40px; height: 40px; flex: 0 0 40px; }
-  .size-btn { width: 44px; height: 44px; flex: 0 0 44px; }
-  .action-btn { min-height: 44px; }
-}
-@media (max-width: 480px) {
+  /* Две колонки одинаковой ширины: слева палитра (все 12 цветов), справа
+     размеры + действия. Размеры подобраны так, чтобы каждая колонка была
+     ~2 ряда — панель остаётся низкой, холсту достаётся больше места. */
+  /* Телефон: две колонки — слева палитра, справа размеры/действия столбиком. */
+  .toolbar-main { flex-direction: row; align-items: flex-start; gap: .4rem; }
+  .colors-grid { flex: 1 1 auto; gap: .25rem; }
+  .color-btn { width: 28px; height: 28px; flex: 0 0 28px; }
+  .tools-col { flex-direction: column; flex: 0 0 40%; width: auto; gap: .3rem; }
+  /* Размеры и действия — каждый в один ряд, чтобы правая колонка была ~2 ряда. */
+  .sizes-row, .actions-row { gap: .25rem; flex-wrap: nowrap; flex: 0 0 auto; }
+  .size-btn { flex: 1 1 0; min-width: 0; width: auto; height: 34px; }
+  .action-btn {
+    min-height: 36px;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: .3rem;
+    gap: 0;
+    justify-content: center;
+  }
   .action-btn .lbl { display: none; }
-  .action-btn { flex: 1 1 0; padding: .5rem; }
-  .action-btn .ico { font-size: 1.3rem; }
+  .action-btn .ico { font-size: 1.2rem; }
 }
 </style>
