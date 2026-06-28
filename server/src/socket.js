@@ -19,6 +19,7 @@ import {
 
 const MAX_NICKNAME = 20;
 const MAX_CHAT = 200;
+const DISCONNECT_GRACE_MS = 30000;
 
 const DEFAULT_SETTINGS = {
   rounds: 3,
@@ -56,20 +57,26 @@ export function registerSocketHandlers(io) {
     socket.data.roomId = null;
     socket.data.userId = null;
 
-    socket.on('lobby:list', (cb) => {
+    // Обёртка: исключение в одном обработчике не должно стать uncaughtException
+    // и уронить процесс — логируем и продолжаем.
+    const on = (event, fn) => socket.on(event, (...args) => {
+      try { fn(...args); } catch (e) { console.error(`[handler ${event}]`, e); }
+    });
+
+    on('lobby:list', (cb) => {
       safeCb(cb, { rooms: listPublicRooms() });
     });
 
-    socket.on('lobby:subscribe', () => {
+    on('lobby:subscribe', () => {
       socket.join('lobby');
       socket.emit('lobby:rooms', { rooms: listPublicRooms() });
     });
 
-    socket.on('lobby:unsubscribe', () => {
+    on('lobby:unsubscribe', () => {
       socket.leave('lobby');
     });
 
-    socket.on('room:create', ({ nickname, name, isPublic, settings, userId } = {}, cb) => {
+    on('room:create', ({ nickname, name, isPublic, settings, userId } = {}, cb) => {
       const nick = sanitizeNick(nickname);
       const settingsClean = sanitizeSettings(settings);
       const room = createRoom({
@@ -84,7 +91,7 @@ export function registerSocketHandlers(io) {
       safeCb(cb, { ok: true, roomId: room.id });
     });
 
-    socket.on('room:join', ({ roomId, nickname, userId } = {}, cb) => {
+    on('room:join', ({ roomId, nickname, userId } = {}, cb) => {
       const id = String(roomId || '').trim().toUpperCase();
       const roomLookup = getRoom(id) || getRoom(String(roomId || '').trim());
       if (!roomLookup) {
@@ -102,18 +109,18 @@ export function registerSocketHandlers(io) {
       safeCb(cb, { ok: true, roomId: roomLookup.id });
     });
 
-    socket.on('room:leave', () => {
+    on('room:leave', () => {
       leaveCurrentRoom(io, socket);
     });
 
-    socket.on('game:start', () => {
+    on('game:start', () => {
       const room = currentRoom(socket);
       if (!room) return;
       if (socket.id !== room.hostId) return;
       startGame(io, room);
     });
 
-    socket.on('game:playAgain', () => {
+    on('game:playAgain', () => {
       const room = currentRoom(socket);
       if (!room || socket.id !== room.hostId) return;
       if (room.state !== 'game_end') return;
@@ -121,14 +128,14 @@ export function registerSocketHandlers(io) {
       io.to(room.id).emit('room:state', publicState(room));
     });
 
-    socket.on('game:chooseWord', ({ word } = {}) => {
+    on('game:chooseWord', ({ word } = {}) => {
       const room = currentRoom(socket);
       if (!room) return;
       if (socket.id !== room.drawerId) return;
       chooseWord(io, room, String(word || ''));
     });
 
-    socket.on('game:draw', (stroke) => {
+    on('game:draw', (stroke) => {
       const room = currentRoom(socket);
       if (!room || room.state !== 'drawing') return;
       if (socket.id !== room.drawerId) return;
@@ -141,7 +148,7 @@ export function registerSocketHandlers(io) {
       socket.to(room.id).emit('game:drawStroke', safeStroke);
     });
 
-    socket.on('game:undo', () => {
+    on('game:undo', () => {
       const room = currentRoom(socket);
       if (!room || room.state !== 'drawing') return;
       if (socket.id !== room.drawerId) return;
@@ -157,7 +164,7 @@ export function registerSocketHandlers(io) {
       socket.to(room.id).emit('game:canvasReplace', { strokes: room.strokes });
     });
 
-    socket.on('game:redo', () => {
+    on('game:redo', () => {
       const room = currentRoom(socket);
       if (!room || room.state !== 'drawing') return;
       if (socket.id !== room.drawerId) return;
@@ -178,7 +185,7 @@ export function registerSocketHandlers(io) {
       }
     });
 
-    socket.on('game:clearCanvas', () => {
+    on('game:clearCanvas', () => {
       const room = currentRoom(socket);
       if (!room) return;
       if (socket.id !== room.drawerId) return;
@@ -187,7 +194,7 @@ export function registerSocketHandlers(io) {
       io.to(room.id).emit('game:clearCanvas');
     });
 
-    socket.on('chat:send', ({ text } = {}) => {
+    on('chat:send', ({ text } = {}) => {
       const room = currentRoom(socket);
       if (!room) return;
       const player = room.players.get(socket.id);
@@ -230,8 +237,8 @@ export function registerSocketHandlers(io) {
       }
     });
 
-    socket.on('disconnect', () => {
-      leaveCurrentRoom(io, socket);
+    on('disconnect', () => {
+      markDisconnected(io, socket);
     });
   });
 }
@@ -266,7 +273,9 @@ function currentRoom(socket) {
   return getRoom(socket.data.roomId);
 }
 
-function leaveCurrentRoom(io, socket) {
+// Мягкий обрыв связи: игрок не удаляется сразу, ему даётся время на реконнект
+// (с тем же userId), чтобы сохранить очки, ход и комнату при кратких сбоях сети.
+function markDisconnected(io, socket) {
   const room = currentRoom(socket);
   if (!room) return;
   const player = room.players.get(socket.id);
@@ -274,10 +283,28 @@ function leaveCurrentRoom(io, socket) {
   socket.leave(room.id);
   socket.data.roomId = null;
   player.isConnected = false;
+
+  // Рисующий всё равно не сможет рисовать — завершаем ход, но игрока оставляем.
+  if (socket.id === room.drawerId && (room.state === 'drawing' || room.state === 'choosing')) {
+    endTurn(io, room, 'drawer_left');
+  }
+
+  if (player.disconnectTimer) clearTimeout(player.disconnectTimer);
+  player.disconnectTimer = setTimeout(() => finalizeRemoval(io, room, player), DISCONNECT_GRACE_MS);
+
+  io.to(room.id).emit('chat:system', { text: `${player.nickname} потерял соединение...` });
+  io.to(room.id).emit('room:state', publicState(room));
+}
+
+// Окончательное удаление игрока из комнаты (по истечении grace или при явном выходе).
+function finalizeRemoval(io, room, player) {
+  if (!player) return;
+  if (player.isConnected) return; // успел переподключиться — ничего не делаем
   if (player.disconnectTimer) clearTimeout(player.disconnectTimer);
   player.disconnectTimer = null;
-  const wasDrawer = socket.id === room.drawerId;
-  removePlayer(room, socket.id);
+  if (!room.players.has(player.id)) return; // уже удалён
+  const wasDrawer = player.id === room.drawerId;
+  removePlayer(room, player.id);
   io.to(room.id).emit('chat:system', { text: `${player.nickname} покинул комнату` });
   if (room.players.size === 0) {
     deleteRoom(room.id);
@@ -287,6 +314,18 @@ function leaveCurrentRoom(io, socket) {
     endTurn(io, room, 'drawer_left');
   }
   io.to(room.id).emit('room:state', publicState(room));
+}
+
+// Явный выход по кнопке — удаляем немедленно, без grace-периода.
+function leaveCurrentRoom(io, socket) {
+  const room = currentRoom(socket);
+  if (!room) return;
+  const player = room.players.get(socket.id);
+  if (!player) return;
+  socket.leave(room.id);
+  socket.data.roomId = null;
+  player.isConnected = false;
+  finalizeRemoval(io, room, player);
 }
 
 function isValidStroke(s) {

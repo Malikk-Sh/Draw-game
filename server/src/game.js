@@ -19,8 +19,14 @@ const DRAWER_IDEAL_BONUS = 30;
 const DRAWER_AFK_PENALTY = 30;
 const GUESSER_AFK_PENALTY = 10;
 
+function connectedCount(room) {
+  let n = 0;
+  for (const p of room.players.values()) if (p.isConnected) n += 1;
+  return n;
+}
+
 export function canStart(room) {
-  return room.state === 'waiting' && room.players.size >= 2;
+  return room.state === 'waiting' && connectedCount(room) >= 2;
 }
 
 export function startGame(io, room) {
@@ -45,7 +51,11 @@ export function nextTurn(io, room) {
   room.hintsRevealed = 0;
   room.turnChatActivity = new Set();
 
-  const order = room.drawerOrder.filter((id) => room.players.has(id));
+  // Отключённые игроки остаются в комнате и таблице очков, но не получают ход.
+  const order = room.drawerOrder.filter((id) => {
+    const p = room.players.get(id);
+    return p && p.isConnected;
+  });
   if (order.length < 2) {
     endGame(io, room);
     return;
