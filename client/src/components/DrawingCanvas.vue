@@ -174,20 +174,10 @@ const sizes = [2, 5, 10, 18, 28];
 }
 .colors-grid {
   display: flex;
+  flex-wrap: wrap;
   gap: .3rem;
-  flex: 1;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-.colors-grid::-webkit-scrollbar { display: none; }
-@media (min-width: 600px) {
-  .colors-grid {
-    flex: 0 1 auto;
-    flex-wrap: wrap;
-    overflow-x: visible;
-  }
+  flex: 1 1 auto;
+  align-content: flex-start;
 }
 .divider {
   width: 1px;
@@ -269,6 +259,12 @@ const sizes = [2, 5, 10, 18, 28];
   }
 }
 @media (max-width: 600px) {
+  /* Палитра — отдельным блоком на всю ширину с переносом (все цвета видны),
+     ряд размеров — отдельной строкой под ней. */
+  .tools-row { flex-direction: column; align-items: stretch; gap: .4rem; }
+  .divider { display: none; }
+  .colors-grid { justify-content: space-between; }
+  .sizes-row { justify-content: space-between; }
   /* Крупнее тач-цели для пальца */
   .color-btn { width: 40px; height: 40px; flex: 0 0 40px; }
   .size-btn { width: 44px; height: 44px; flex: 0 0 44px; }

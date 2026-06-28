@@ -45,6 +45,15 @@ html, body {
   min-height: 100dvh;
 }
 
+/* На экране комнаты фиксируем высоту по видимой области (visualViewport) и
+   запрещаем скролл — клавиатура ужимает раскладку, а не уводит страницу вверх.
+   На остальных экранах #app остаётся со скроллом (лобби/home не ломаются). */
+#app.kb-lock {
+  height: var(--vvh, 100dvh);
+  min-height: 0;
+  overflow: hidden;
+}
+
 button {
   font-family: inherit;
   font-size: 1rem;
