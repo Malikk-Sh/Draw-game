@@ -267,19 +267,27 @@ const sizes = [2, 5, 10, 18, 28];
   /* Две колонки одинаковой ширины: слева палитра (все 12 цветов), справа
      размеры + действия. Размеры подобраны так, чтобы каждая колонка была
      ~2 ряда — панель остаётся низкой, холсту достаётся больше места. */
-  /* Телефон: две колонки — слева палитра, справа размеры/действия столбиком. */
+  /* Телефон: две колонки — слева палитра, справа размеры/действия столбиком.
+     Кнопки фиксированного квадратного размера и по центру (не растянуты). */
   .toolbar-main { flex-direction: row; align-items: flex-start; gap: .4rem; }
   .colors-grid { flex: 1 1 auto; gap: .25rem; }
   .color-btn { width: 28px; height: 28px; flex: 0 0 28px; }
-  .tools-col { flex-direction: column; flex: 0 0 40%; width: auto; gap: .3rem; }
-  /* Размеры и действия — каждый в один ряд, чтобы правая колонка была ~2 ряда. */
-  .sizes-row, .actions-row { gap: .25rem; flex-wrap: nowrap; flex: 0 0 auto; }
-  .size-btn { flex: 1 1 0; min-width: 0; width: auto; height: 34px; }
+  .tools-col { flex-direction: column; flex: 0 0 44%; width: auto; gap: .35rem; }
+  .sizes-row, .actions-row {
+    gap: .2rem;
+    flex-wrap: nowrap;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  /* min-height:0 — иначе глобальное button{min-height:44px} делает кнопки
+     высокими «пилюлями». Тут они строго квадратные. */
+  .size-btn { flex: 0 0 auto; width: 28px; height: 28px; min-height: 0; }
   .action-btn {
-    min-height: 36px;
-    flex: 1 1 0;
-    min-width: 0;
-    padding: .3rem;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    min-height: 0;
+    padding: 0;
     gap: 0;
     justify-content: center;
   }

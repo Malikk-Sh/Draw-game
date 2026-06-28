@@ -21,6 +21,7 @@ export const useGameStore = defineStore('game', {
     floatingPoints: [],
     lastRoomId: null,
     leftManually: false,
+    chatFocused: false,
   }),
   getters: {
     isHost: (s) => s.room && s.myId && s.room.hostId === s.myId,

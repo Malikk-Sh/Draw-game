@@ -88,6 +88,8 @@ onMounted(async () => {
         spellcheck="false"
         enterkeyhint="send"
         inputmode="text"
+        @focus="store.chatFocused = true"
+        @blur="store.chatFocused = false"
       />
       <button type="submit" :disabled="store.isDrawer || !text.trim()" aria-label="Отправить">
         ➤

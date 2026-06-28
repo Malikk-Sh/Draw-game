@@ -102,6 +102,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('online', handleOnline);
   document.getElementById('app')?.classList.remove('kb-lock');
+  store.chatFocused = false;
 });
 
 function enqueueToastMessage(msg) {
@@ -132,7 +133,7 @@ watch(
 </script>
 
 <template>
-  <main class="room">
+  <main class="room" :class="{ typing: store.chatFocused }">
     <div v-if="error" class="card error-card">
       <p class="error-text">{{ error }}</p>
       <button @click="router.push('/lobby')">В лобби</button>
@@ -341,6 +342,18 @@ watch(
   .room-name { font-size: .9rem; margin-bottom: .15rem; }
   .invite-code { display: none; }
   .header-tags { gap: .25rem; }
+}
+
+/* Активно поле ввода (открыта клавиатура): на телефоне холст занимает всё место
+   над клавиатурой — прячем шапку, полосу игроков, слово/таймер и ленту чата;
+   остаются только холст и поле ввода. */
+@media (max-width: 599px) {
+  .room.typing .room-header,
+  .room.typing .pl-strip { display: none; }
+  .room.typing .zone-canvas :deep(.word-display),
+  .room.typing .zone-canvas :deep(.timer) { display: none; }
+  .room.typing .zone-chat { max-height: none; min-height: 0; }
+  .room.typing .zone-chat :deep(.chat-list) { display: none; }
 }
 
 /* Короткий ландшафт (телефон боком): максимально сжать шапку под холст+чат */
