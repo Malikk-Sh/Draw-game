@@ -14,6 +14,7 @@ export const useGameStore = defineStore('game', {
     messages: [],
     pendingNewStrokes: [],
     clearSignal: 0,
+    correctGuessSignal: 0,
     lastTurnEnd: null,
     lastGameEnd: null,
     lobbyRooms: [],
@@ -107,6 +108,7 @@ export const useGameStore = defineStore('game', {
           if (p.id === playerId) p.hasGuessed = true;
         }
         if (gainedPoints) this.spawnFloat(playerId, `+${gainedPoints}`);
+        this.correctGuessSignal += 1;
       });
       s.on('game:turnEnd', (payload) => {
         if (!this.room) return;

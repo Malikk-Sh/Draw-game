@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import { getSocket } from '../composables/useSocket';
 import { useRouter } from 'vue-router';
+import Confetti from './Confetti.vue';
 
 const store = useGameStore();
 const router = useRouter();
@@ -24,6 +25,7 @@ const onlinePlayers = computed(() => (store.room?.players || []).filter((p) => p
 <template>
   <transition name="fade">
     <div class="modal-backdrop" v-if="showGameEnd">
+      <Confetti />
       <div class="modal end-modal">
         <div class="trophy-decoration">🎉</div>
         <h2 class="end-title">Игра окончена!</h2>

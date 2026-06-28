@@ -48,7 +48,11 @@ async function toggleFullscreen() {
     </div>
     <button v-if="canFullscreen" class="ghost fs-toggle" @click="toggleFullscreen">⛶</button>
   </header>
-  <router-view />
+  <router-view v-slot="{ Component }">
+    <transition name="route" mode="out-in">
+      <component :is="Component" />
+    </transition>
+  </router-view>
 </template>
 
 <style scoped>

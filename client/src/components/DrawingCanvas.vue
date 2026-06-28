@@ -1,11 +1,22 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import { useCanvas } from '../composables/useCanvas';
 
 const store = useGameStore();
 const canvasRef = ref(null);
 const isDrawer = computed(() => store.isDrawer);
+
+// Зелёная вспышка холста при угадывании слова кем-либо.
+const flashKey = ref(0);
+const showFlash = ref(false);
+let flashTimer = null;
+watch(() => store.correctGuessSignal, () => {
+  flashKey.value += 1;
+  showFlash.value = true;
+  if (flashTimer) clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { showFlash.value = false; }, 600);
+});
 
 const {
   color, size, tool,
@@ -28,6 +39,7 @@ const sizes = [2, 5, 10, 18, 28];
   <div class="canvas-block">
     <div class="canvas-wrap">
       <canvas ref="canvasRef"></canvas>
+      <div v-if="showFlash" :key="flashKey" class="canvas-flash"></div>
       <transition name="overlay">
         <div
           v-if="store.room && store.room.state !== 'drawing'"

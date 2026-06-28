@@ -57,13 +57,33 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 17, 36, 0.85);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  color: var(--text);
+  background: rgba(35, 28, 18, 0.55);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  color: #fbf6ec;
   text-align: center;
   padding: 1rem;
   font-size: 1.05rem;
+}
+.canvas-overlay .muted {
+  color: rgba(251, 246, 236, 0.7);
+}
+
+/* Зелёная вспышка холста при угадывании слова */
+.canvas-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: var(--radius);
+  z-index: 15;
+  background: radial-gradient(circle at center, rgba(46, 139, 87, 0.32), rgba(46, 139, 87, 0) 70%);
+  box-shadow: inset 0 0 0 4px rgba(46, 139, 87, 0.55);
+  animation: canvas-flash .6s ease-out forwards;
+}
+@keyframes canvas-flash {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 @media (max-width: 600px) {
