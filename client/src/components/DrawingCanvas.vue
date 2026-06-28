@@ -173,15 +173,20 @@ const sizes = [2, 5, 10, 18, 28];
   margin-top: .35rem;
 }
 .colors-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: .25rem;
+  display: flex;
+  gap: .3rem;
   flex: 1;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
+.colors-grid::-webkit-scrollbar { display: none; }
 @media (min-width: 600px) {
   .colors-grid {
-    display: flex;
     flex: 0 1 auto;
+    flex-wrap: wrap;
+    overflow-x: visible;
   }
 }
 .divider {
@@ -197,9 +202,9 @@ const sizes = [2, 5, 10, 18, 28];
 }
 .size-btn {
   background: var(--bg-3);
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
 }
 .size-btn.active {
   border-color: var(--primary);
@@ -210,8 +215,9 @@ const sizes = [2, 5, 10, 18, 28];
   display: inline-block;
 }
 .color-btn {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
 }
 .color-btn.active {
   outline: 3px solid var(--accent);
@@ -261,6 +267,12 @@ const sizes = [2, 5, 10, 18, 28];
     padding: .45rem;
     box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
   }
+}
+@media (max-width: 600px) {
+  /* Крупнее тач-цели для пальца */
+  .color-btn { width: 40px; height: 40px; flex: 0 0 40px; }
+  .size-btn { width: 44px; height: 44px; flex: 0 0 44px; }
+  .action-btn { min-height: 44px; }
 }
 @media (max-width: 480px) {
   .action-btn .lbl { display: none; }

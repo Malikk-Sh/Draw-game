@@ -19,10 +19,7 @@ const userStore = useUserStore();
 const store = useGameStore();
 
 const error = ref('');
-const mobileTab = ref(null);
 const copied = ref(false);
-const mobileTabsRef = ref(null);
-const mobilePanelRef = ref(null);
 const toastMessages = ref([]);
 const MESSAGE_LIFETIME_MS = 3000;
 
@@ -86,17 +83,6 @@ function handleOnline() {
   if (!store.leftManually && store.lastRoomId === props.id) joinIfNeeded();
 }
 
-function closeMobileTabOnOutsideClick(event) {
-  if (!mobileTab.value) return;
-  const tabsEl = mobileTabsRef.value;
-  const panelEl = mobilePanelRef.value;
-  const target = event.target;
-  if (!target || !(target instanceof Node)) return;
-  if (tabsEl?.contains(target)) return;
-  if (panelEl?.contains(target)) return;
-  mobileTab.value = null;
-}
-
 async function copyInvite() {
   try {
     await navigator.clipboard.writeText(inviteUrl.value);
@@ -109,22 +95,15 @@ onMounted(() => {
   joinIfNeeded();
   store.clearManualLeave();
   window.addEventListener('online', handleOnline);
-  document.addEventListener('pointerdown', closeMobileTabOnOutsideClick);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('online', handleOnline);
-  document.removeEventListener('pointerdown', closeMobileTabOnOutsideClick);
 });
 
 function enqueueToastMessage(msg) {
   const id = `${Date.now()}-${Math.random()}`;
-  const toast = {
-    id,
-    nickname: msg.nickname,
-    text: msg.text,
-  };
-  toastMessages.value.push(toast);
+  toastMessages.value.push({ id, nickname: msg.nickname, text: msg.text });
   setTimeout(() => {
     toastMessages.value = toastMessages.value.filter((item) => item.id !== id);
   }, MESSAGE_LIFETIME_MS);
@@ -168,39 +147,32 @@ watch(
             <span class="badge round" v-if="store.room.state !== 'waiting'">
               Раунд {{ Math.max(1, store.room.round) }} / {{ store.room.maxRounds }}
             </span>
-          </div>
-          <div class="invite-row">
-            <span class="muted invite-lbl">Код:</span>
             <code class="invite-code">{{ store.room.id }}</code>
-            <button class="ghost copy-btn" @click="copyInvite">
-              {{ copied ? '✓ скопировано' : '🔗 ссылка' }}
-            </button>
           </div>
         </div>
         <div class="header-actions">
-          <button
-            v-if="fullScreenSupported"
-            @click="toggleFullscreen"
-            class="ghost fullscreen-btn"
-          >⛶ Экран</button>
-          <button v-if="canStart" @click="start" class="start-btn">▶ Начать игру</button>
-          <button v-else-if="store.isHost && store.room.state === 'waiting'" disabled class="ghost">
-            Нужно ≥ 2 игроков
+          <button class="ghost copy-btn" @click="copyInvite">
+            {{ copied ? '✓' : '🔗' }}<span class="btn-lbl">{{ copied ? ' скопировано' : ' ссылка' }}</span>
           </button>
-          <button class="ghost leave-btn" @click="leave">Выйти</button>
+          <button v-if="canStart" @click="start" class="start-btn">▶<span class="btn-lbl"> Начать</span></button>
+          <button v-else-if="store.isHost && store.room.state === 'waiting'" disabled class="ghost need-players">
+            Нужно ≥ 2
+          </button>
+          <button class="ghost leave-btn" @click="leave">🚪<span class="btn-lbl"> Выйти</span></button>
         </div>
       </div>
 
-      <div class="game-grid">
-        <aside class="grid-players">
-          <PlayersList />
+      <div class="game-area">
+        <PlayersList variant="strip" class="zone pl-strip" />
+        <aside class="zone pl-list">
+          <PlayersList variant="list" />
         </aside>
-        <section class="grid-canvas">
+        <section class="zone zone-canvas">
           <WordDisplay />
           <TurnTimer />
           <DrawingCanvas />
         </section>
-        <aside class="grid-chat">
+        <aside class="zone zone-chat">
           <ChatBox :is-active="true" />
         </aside>
       </div>
@@ -211,19 +183,6 @@ watch(
           <span class="toast-text">{{ msg.text }}</span>
         </div>
       </TransitionGroup>
-
-      <nav class="mobile-tabs" v-if="store.room" ref="mobileTabsRef">
-        <button :class="{ active: mobileTab === 'chat' }" @pointerdown.stop="mobileTab = mobileTab === 'chat' ? null : 'chat'">
-          💬 Чат
-        </button>
-        <button v-if="mobileTab !== 'chat'" :class="{ active: mobileTab === 'players' }" @pointerdown.stop="mobileTab = mobileTab === 'players' ? null : 'players'">
-          👥 Игроки <span class="count">{{ store.room.players.length }}</span>
-        </button>
-      </nav>
-      <div class="mobile-panel" :class="{ open: !!mobileTab }" ref="mobilePanelRef">
-        <PlayersList v-if="mobileTab === 'players'" />
-        <ChatBox v-else-if="mobileTab === 'chat'" :is-active="mobileTab === 'chat'" />
-      </div>
 
       <WordChoiceModal />
       <RoundEndModal />
@@ -240,12 +199,13 @@ watch(
 
 <style scoped>
 .room {
-  padding: .7rem;
-  padding-bottom: calc(46px + 1.6rem + env(safe-area-inset-bottom));
+  padding: .6rem;
+  padding-bottom: calc(.6rem + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  gap: .7rem;
+  gap: .55rem;
   flex: 1;
+  min-height: 0;
 }
 .error-card {
   margin: 1rem;
@@ -253,181 +213,163 @@ watch(
 }
 .error-text { color: var(--danger); margin: 0 0 .8rem; }
 
+/* ===== Шапка ===== */
 .room-header {
-  padding: .85rem 1rem;
+  padding: .55rem .7rem;
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: .8rem;
+  gap: .5rem;
 }
-.header-left { flex: 1; min-width: 220px; }
+.header-left { flex: 1; min-width: 0; }
 .room-name {
-  margin: 0 0 .3rem;
-  font-size: 1.15rem;
+  margin: 0 0 .25rem;
+  font-size: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .header-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: .35rem;
-  margin-bottom: .4rem;
+  gap: .3rem;
+  align-items: center;
 }
 .badge.pub { background: rgba(46, 204, 113, 0.2); color: var(--success); }
 .badge.priv { background: rgba(255, 209, 102, 0.2); color: var(--accent); }
-.badge.state { text-transform: uppercase; letter-spacing: .05em; font-size: .7rem; }
+.badge.state { text-transform: uppercase; letter-spacing: .05em; font-size: .68rem; }
 .badge.round { background: var(--bg-3); color: var(--text); }
-
-.invite-row {
-  display: flex;
-  align-items: center;
-  gap: .4rem;
-  flex-wrap: wrap;
-}
-.invite-lbl { font-size: .82rem; }
 .invite-code {
   background: var(--bg-3);
-  padding: .2rem .65rem;
+  padding: .1rem .5rem;
   border-radius: 6px;
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-weight: 700;
   letter-spacing: .12em;
   color: var(--accent);
-}
-.copy-btn {
-  padding: .25rem .6rem;
-  min-height: 30px;
   font-size: .8rem;
 }
-
 .header-actions {
   display: flex;
-  gap: .4rem;
+  gap: .35rem;
   flex-wrap: wrap;
+  flex: 0 0 auto;
+}
+.header-actions button {
+  min-height: 38px;
+  padding: .4rem .7rem;
+  font-size: .88rem;
 }
 .start-btn {
   background: linear-gradient(135deg, var(--success), #1abc9c);
-  font-size: .95rem;
 }
-.leave-btn {
-  font-size: .9rem;
-  padding: .5rem 1rem;
-  min-height: 38px;
-}
+.need-players { font-size: .82rem; }
 
-.game-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: .7rem;
-}
-.grid-players,
-.grid-chat { display: none; }
-.grid-canvas {
+/* ===== Игровая зона (адаптив) ===== */
+.game-area {
   display: flex;
   flex-direction: column;
-  gap: .4rem;
+  gap: .5rem;
+  flex: 1;
+  min-height: 0;
+}
+.pl-list { display: none; }
+.zone-canvas {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  flex: 0 0 auto;
+}
+.zone-chat {
+  flex: 1 1 auto;
+  min-height: 132px;
+  display: flex;
+}
+.zone-chat :deep(.chat-box) { height: 100%; width: 100%; }
+
+/* Планшет / телефон в ландшафте: холст + чат бок о бок, игроки полосой сверху */
+@media (min-width: 600px) and (max-width: 899px),
+       (orientation: landscape) and (max-height: 600px) {
+  .game-area {
+    display: grid;
+    grid-template-columns: 1.7fr 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "strip strip"
+      "canvas chat";
+    min-height: 0;
+  }
+  .pl-strip { grid-area: strip; }
+  .zone-canvas { grid-area: canvas; min-height: 0; }
+  .zone-chat { grid-area: chat; min-height: 0; }
 }
 
-.mobile-tabs {
-  position: fixed;
-  left: .7rem;
-  right: .7rem;
-  bottom: max(.6rem, env(safe-area-inset-bottom));
-  margin-top: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: .4rem;
-  z-index: 70;
-}
-.mobile-tabs button {
-  background: var(--bg-2);
-  color: #3f3123;
-  border: 1px solid var(--border);
-  min-height: 40px;
-  font-size: .95rem;
-  font-weight: 700;
-}
-.mobile-tabs button.active {
-  background: var(--primary);
-  color: #fff7e8;
-  border-color: var(--primary);
-}
-.count {
-  margin-left: .25rem;
-  background: rgba(255, 255, 255, 0.15);
-  padding: 0 .35rem;
-  border-radius: 999px;
-  font-size: .75rem;
-}
-.mobile-panel {
-  position: fixed;
-  left: .7rem;
-  right: .7rem;
-  bottom: calc(max(.6rem, env(safe-area-inset-bottom)) + 46px + .45rem);
-  height: min(55vh, 420px);
-  opacity: 0;
-  transform: translateY(calc(100% + .8rem));
-  pointer-events: none;
-  transition: transform .22s ease, opacity .18s ease;
-  background: rgba(10, 14, 24, .72);
-  backdrop-filter: blur(4px);
-  border-radius: 12px;
-  padding: .4rem;
-  overflow: hidden;
-  z-index: 69;
-}
-.mobile-panel.open {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
+/* Десктоп: 3 колонки, полный список игроков */
+@media (min-width: 900px) {
+  .room { padding: 1rem; gap: 1rem; }
+  .game-area {
+    display: grid;
+    grid-template-columns: 240px 1fr 320px;
+    grid-template-areas: "players canvas chat";
+    align-items: start;
+    min-height: 0;
+  }
+  .pl-strip { display: none; }
+  .pl-list { display: block; grid-area: players; }
+  .zone-canvas { grid-area: canvas; }
+  .zone-chat { grid-area: chat; height: 72vh; max-height: 780px; min-height: 0; }
+  .room-header { padding: .85rem 1rem; }
+  .room-name { font-size: 1.15rem; }
 }
 
+/* На узких экранах прячем текстовые подписи кнопок шапки */
+@media (max-width: 560px) {
+  .header-actions .btn-lbl { display: none; }
+  .header-actions button { padding: .4rem .6rem; }
+}
+
+/* Короткий ландшафт (телефон боком): максимально сжать шапку под холст+чат */
+@media (orientation: landscape) and (max-height: 600px) {
+  .room { padding: .4rem; gap: .4rem; }
+  .room-header { padding: .35rem .6rem; }
+  .room-name { font-size: .9rem; margin-bottom: .15rem; }
+  .header-actions .btn-lbl { display: none; }
+  .header-actions button { min-height: 32px; padding: .3rem .5rem; }
+}
+
+/* ===== Всплывашки догадок для рисующего ===== */
 .guess-toasts {
   position: fixed;
-  left: .7rem;
-  right: .7rem;
-  bottom: calc(max(.6rem, env(safe-area-inset-bottom)) + 46px + .6rem + min(55vh, 420px));
+  top: calc(56px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
-  gap: .45rem;
+  gap: .4rem;
   z-index: 72;
   pointer-events: none;
+  width: min(92%, 420px);
 }
 .guess-toast-item {
   background: rgba(15, 22, 37, .86);
   border: 1px solid rgba(141, 225, 255, .35);
   border-radius: 12px;
-  padding: .5rem .65rem;
+  padding: .45rem .65rem;
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 26px rgba(0, 0, 0, .24);
 }
-.toast-author {
-  font-size: .76rem;
-  font-weight: 700;
-  color: #7fd6ff;
-}
-.toast-text {
-  color: #f7fbff;
-  font-size: .9rem;
-  font-weight: 500;
-  word-break: break-word;
+.toast-author { font-size: .74rem; font-weight: 700; color: #7fd6ff; }
+.toast-text { color: #f7fbff; font-size: .88rem; font-weight: 500; word-break: break-word; }
+.guess-toast-enter-active, .guess-toast-leave-active { transition: opacity .28s ease, transform .28s ease; }
+.guess-toast-enter-from, .guess-toast-leave-to { opacity: 0; transform: translateY(-12px) scale(.97); }
+@media (min-width: 900px) {
+  .guess-toasts { display: none; }
 }
 
-.guess-toast-enter-active,
-.guess-toast-leave-active {
-  transition: opacity .28s ease, transform .28s ease;
-}
-.guess-toast-enter-from,
-.guess-toast-leave-to {
-  opacity: 0;
-  transform: translateY(14px) scale(.97);
-}
-
-.loading {
-  display: flex;
-  align-items: center;
-  gap: .8rem;
-}
+/* ===== Загрузка ===== */
+.loading { display: flex; align-items: center; gap: .8rem; }
 .spinner {
   width: 20px;
   height: 20px;
@@ -437,30 +379,4 @@ watch(
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-@media (min-width: 900px) {
-  .room {
-    padding: 1rem;
-    padding-bottom: 1rem;
-    gap: 1rem;
-  }
-  .game-grid {
-    grid-template-columns: 240px 1fr 320px;
-    align-items: start;
-    min-height: 0;
-  }
-  .grid-players, .grid-chat { display: block; }
-  .grid-chat {
-    height: 70vh;
-    max-height: 760px;
-  }
-  .guess-toasts {
-    left: calc(240px + 1rem + .8rem);
-    right: calc(320px + 1rem + .8rem);
-    bottom: 1.3rem;
-    max-width: none;
-  }
-  .mobile-tabs, .mobile-panel { display: none; }
-  .guess-toasts { display: none; }
-}
 </style>
