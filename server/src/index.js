@@ -11,6 +11,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 const isProd = process.env.NODE_ENV === 'production';
 
+// Один сбойный обработчик не должен ронять весь сервер и все комнаты разом.
+process.on('uncaughtException', (err) => console.error('[uncaught]', err));
+process.on('unhandledRejection', (err) => console.error('[unhandled]', err));
+
 const app = express();
 const httpServer = createServer(app);
 const io = new SocketServer(httpServer, {
