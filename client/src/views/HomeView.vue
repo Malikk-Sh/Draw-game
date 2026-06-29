@@ -2,11 +2,15 @@
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../stores/userStore';
+import { useGameStore } from '../stores/gameStore';
+import { emitAck } from '../composables/useSocket';
 
 const router = useRouter();
 const userStore = useUserStore();
+const store = useGameStore();
 
 const nickname = ref(userStore.nickname);
+const busy = ref(false);
 
 const canPlay = computed(() => nickname.value.trim().length >= 2);
 
@@ -14,6 +18,26 @@ function play() {
   if (!canPlay.value) return;
   userStore.setNickname(nickname.value);
   router.push('/lobby');
+}
+
+async function playTest() {
+  if (!canPlay.value || busy.value) return;
+  userStore.setNickname(nickname.value);
+  busy.value = true;
+  try {
+    const res = await emitAck('room:createTest', {
+      nickname: userStore.nickname,
+      userId: userStore.ensureUserId(),
+    });
+    if (res?.ok) {
+      store.markJoinedRoom(res.roomId);
+      router.push(`/room/${res.roomId}`);
+    }
+  } catch (_) {
+    // ignore — пользователь может попробовать снова
+  } finally {
+    busy.value = false;
+  }
 }
 </script>
 
@@ -40,6 +64,9 @@ function play() {
         </label>
         <button :disabled="!canPlay" @click="play" class="play-btn">
           🚀 Играть
+        </button>
+        <button :disabled="!canPlay || busy" @click="playTest" class="secondary test-btn">
+          🧪 Тест с ботом
         </button>
       </div>
     </div>

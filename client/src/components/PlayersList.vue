@@ -59,7 +59,7 @@ function toggleExpanded() {
       >
         <div class="rank">{{ idx + 1 }}</div>
         <div class="avatar" :style="{ background: avatarFor(p) }">
-          {{ initials(p.nickname) }}
+          {{ p.isBot ? '🤖' : initials(p.nickname) }}
           <span v-if="store.room?.drawerId === p.id" class="pencil">✏️</span>
         </div>
         <div class="info">
@@ -99,7 +99,7 @@ function toggleExpanded() {
         }"
       >
         <div class="chip-avatar" :style="{ background: avatarFor(p) }">
-          {{ initials(p.nickname) }}
+          {{ p.isBot ? '🤖' : initials(p.nickname) }}
           <span v-if="store.room?.drawerId === p.id" class="chip-pencil">✏️</span>
           <span v-else-if="p.hasGuessed && store.room?.state === 'drawing'" class="chip-check">✓</span>
         </div>
@@ -127,7 +127,7 @@ function toggleExpanded() {
             :class="{ drawer: store.room?.drawerId === p.id, self: store.myId === p.id }"
           >
             <span class="rank">{{ idx + 1 }}</span>
-            <span class="avatar sm" :style="{ background: avatarFor(p) }">{{ initials(p.nickname) }}</span>
+            <span class="avatar sm" :style="{ background: avatarFor(p) }">{{ p.isBot ? '🤖' : initials(p.nickname) }}</span>
             <span class="name">{{ p.nickname }}</span>
             <span v-if="store.room?.hostId === p.id" class="badge host">★</span>
             <span v-if="store.room?.drawerId === p.id" class="badge drawer">рисует</span>

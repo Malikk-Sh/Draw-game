@@ -18,6 +18,8 @@ const DRAWER_CAP_MULT = 1.3;
 const DRAWER_IDEAL_BONUS = 30;
 const DRAWER_AFK_PENALTY = 30;
 const GUESSER_AFK_PENALTY = 10;
+const BOT_CHOOSE_DELAY_MS = 900;
+const BOT_GUESS_DELAY_MS = 15000;
 
 function connectedCount(room) {
   let n = 0;
@@ -92,6 +94,17 @@ export function nextTurn(io, room) {
     if (room.state !== 'choosing') return;
     endTurn(io, room, 'no_word_chosen');
   }, CHOOSING_MS);
+
+  // Бот не умеет выбирать слово вручную — выбираем за него автоматически.
+  if (drawer && drawer.isBot) {
+    const botId = drawer.id;
+    const t = setTimeout(() => {
+      if (room.state === 'choosing' && room.drawerId === botId && room.pendingChoices) {
+        chooseWord(io, room, room.pendingChoices[0]);
+      }
+    }, BOT_CHOOSE_DELAY_MS);
+    room.botTimers.push(t);
+  }
 }
 
 export function chooseWord(io, room, word) {
@@ -123,6 +136,54 @@ export function chooseWord(io, room, word) {
 
   scheduleHints(io, room);
   room.turnTimer = setTimeout(() => endTurn(io, room, 'timeout'), room.turnDurationMs);
+
+  scheduleBotForTurn(io, room);
+}
+
+// Автоматика бота на текущий ход:
+// - если рисует бот → раскрываем слово в чат по одной букве (бот не рисует);
+// - если рисует человек → бот сам угадывает слово через BOT_GUESS_DELAY_MS,
+//   чтобы ход завершился.
+function scheduleBotForTurn(io, room) {
+  const drawer = room.players.get(room.drawerId);
+  if (drawer && drawer.isBot) {
+    botRevealWord(io, room);
+    return;
+  }
+  for (const p of room.players.values()) {
+    if (p.isBot && p.id !== room.drawerId) scheduleBotGuess(io, room, p.id);
+  }
+}
+
+function scheduleBotGuess(io, room, botId) {
+  const word = room.currentWord;
+  const delay = Math.min(BOT_GUESS_DELAY_MS, Math.max(3000, room.turnDurationMs - 4000));
+  const t = setTimeout(() => {
+    if (room.state === 'drawing' && room.currentWord === word && !room.guessedBy.has(botId)) {
+      handleGuess(io, room, botId, word);
+    }
+  }, delay);
+  room.botTimers.push(t);
+}
+
+function botRevealWord(io, room) {
+  const word = room.currentWord;
+  if (!word) return;
+  io.to(room.id).emit('chat:system', {
+    text: '🤖 Я бот и не умею рисовать — даю слово по буквам, впиши его в чат:',
+  });
+  const letters = [...word];
+  const total = letters.length;
+  // Раскрываем по одной букве за ~первую половину хода.
+  const step = Math.min(4000, Math.max(1500, Math.floor((room.turnDurationMs * 0.5) / total)));
+  for (let i = 1; i <= total; i++) {
+    const t = setTimeout(() => {
+      if (room.state !== 'drawing' || room.currentWord !== word) return;
+      const shown = letters.map((ch, idx) => (idx < i ? ch : '_')).join(' ');
+      io.to(room.id).emit('chat:system', { text: `🤖 ${shown}` });
+    }, step * i);
+    room.botTimers.push(t);
+  }
 }
 
 function scheduleHints(io, room) {

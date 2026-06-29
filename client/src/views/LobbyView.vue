@@ -50,6 +50,27 @@ async function createRoom() {
   }
 }
 
+async function createTestRoom() {
+  busy.value = true;
+  error.value = '';
+  try {
+    const res = await emitAck('room:createTest', {
+      nickname: userStore.nickname,
+      userId: userStore.ensureUserId(),
+    });
+    if (res?.ok) {
+      store.markJoinedRoom(res.roomId);
+      router.push(`/room/${res.roomId}`);
+    } else {
+      error.value = res?.error || 'Не удалось создать';
+    }
+  } catch (_) {
+    error.value = 'Ошибка соединения';
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function join(id) {
   busy.value = true;
   error.value = '';
@@ -212,6 +233,10 @@ onBeforeUnmount(() => {
         <button :disabled="busy" @click="createRoom" class="create-btn">
           Создать и войти
         </button>
+        <button :disabled="busy" @click="createTestRoom" class="secondary test-btn">
+          🧪 Тестовая комната (с ботом)
+        </button>
+        <p class="muted test-hint">Один игрок + бот — для быстрой проверки без второго устройства.</p>
         <p v-if="error" class="error">{{ error }}</p>
       </section>
     </div>
@@ -359,6 +384,15 @@ onBeforeUnmount(() => {
   font-size: 1.05rem;
   padding: .85rem;
   background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+}
+.test-btn {
+  width: 100%;
+  margin-top: .5rem;
+}
+.test-hint {
+  font-size: .78rem;
+  margin: .35rem 0 0;
+  text-align: center;
 }
 .hint-toggle {
   display: inline-flex;
