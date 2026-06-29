@@ -12,6 +12,7 @@ import WordDisplay from '../components/WordDisplay.vue';
 import TurnTimer from '../components/TurnTimer.vue';
 import WordChoiceModal from '../components/WordChoiceModal.vue';
 import RoundEndModal from '../components/RoundEndModal.vue';
+import TurnRecapModal from '../components/TurnRecapModal.vue';
 
 const props = defineProps({ id: String });
 const router = useRouter();
@@ -185,6 +186,7 @@ watch(
       </TransitionGroup>
 
       <WordChoiceModal />
+      <TurnRecapModal />
       <RoundEndModal />
     </template>
 

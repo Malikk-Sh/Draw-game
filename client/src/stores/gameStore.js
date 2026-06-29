@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { getSocket } from '../composables/useSocket.js';
+import { playSound } from '../composables/useSound.js';
 
 export const useGameStore = defineStore('game', {
   state: () => ({
@@ -19,6 +20,7 @@ export const useGameStore = defineStore('game', {
     lastGameEnd: null,
     lobbyRooms: [],
     floatingPoints: [],
+    reactions: [],
     lastRoomId: null,
     leftManually: false,
   }),
@@ -70,6 +72,7 @@ export const useGameStore = defineStore('game', {
         this.wordChoicesTimeMs = timeMs;
         this.wordChoicesReceivedAt = Date.now();
         this.wordChoices = words;
+        playSound('yourTurn');
       });
       s.on('game:wordToDraw', ({ word }) => {
         this.wordToDraw = word;
@@ -87,6 +90,7 @@ export const useGameStore = defineStore('game', {
         this.maskedWord = payload.maskedWord;
         for (const p of this.room.players) p.hasGuessed = false;
         this.pendingNewStrokes.push({ kind: 'replace', strokes: [] });
+        playSound('turnStart');
       });
       s.on('game:drawStroke', (stroke) => {
         this.pendingNewStrokes.push({ kind: 'add', stroke });
@@ -109,6 +113,7 @@ export const useGameStore = defineStore('game', {
         }
         if (gainedPoints) this.spawnFloat(playerId, `+${gainedPoints}`);
         this.correctGuessSignal += 1;
+        playSound(playerId === this.myId ? 'selfCorrect' : 'correct');
       });
       s.on('game:turnEnd', (payload) => {
         if (!this.room) return;
@@ -119,14 +124,28 @@ export const useGameStore = defineStore('game', {
             if (payload.scores[p.id] != null) p.score = payload.scores[p.id];
           }
         }
+        playSound('turnEnd');
       });
       s.on('game:end', ({ ranking }) => {
         if (this.room) this.room.state = 'game_end';
         this.lastGameEnd = { ranking };
+        playSound('win');
+      });
+      s.on('game:reaction', ({ id, emoji }) => {
+        const rid = id || Math.random().toString(36).slice(2);
+        this.reactions.push({ id: rid, emoji, x: 6 + Math.random() * 86 });
+        if (this.reactions.length > 30) this.reactions.splice(0, this.reactions.length - 30);
+        setTimeout(() => {
+          this.reactions = this.reactions.filter((r) => r.id !== rid);
+        }, 2200);
+        playSound('pop');
       });
       s.on('lobby:rooms', ({ rooms }) => {
         this.lobbyRooms = rooms || [];
       });
+    },
+    sendReaction(emoji) {
+      getSocket().emit('game:react', { emoji });
     },
     spawnFloat(playerId, text) {
       const id = Math.random().toString(36).slice(2);
@@ -159,6 +178,7 @@ export const useGameStore = defineStore('game', {
       this.messages = [];
       this.lastTurnEnd = null;
       this.lastGameEnd = null;
+      this.reactions = [];
     },
     markJoinedRoom(roomId) {
       this.lastRoomId = roomId || null;

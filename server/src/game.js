@@ -275,13 +275,28 @@ export function handleGuess(io, room, socketId, text) {
 
 export function endTurn(io, room, reason) {
   clearAllTimers(room);
-  if (room.state === 'drawing') applyTurnEconomy(room, reason);
+  let gains = {};
+  if (room.state === 'drawing') gains = applyTurnEconomy(room, reason);
   if (room.state === 'round_end' || room.state === 'waiting') return;
   const word = room.currentWord;
+  const drawerId = room.drawerId;
   room.state = 'round_end';
+  // Итоги хода: кто сколько набрал именно за этот ход (для модалки-recap).
+  const summary = Array.from(room.players.values())
+    .map((p) => ({
+      id: p.id,
+      nickname: p.nickname,
+      isBot: Boolean(p.isBot),
+      gained: gains[p.id] || 0,
+      guessed: room.guessedBy.has(p.id),
+      isDrawer: p.id === drawerId,
+    }))
+    .sort((a, b) => b.gained - a.gained);
   io.to(room.id).emit('game:turnEnd', {
     word,
     reason,
+    drawerId,
+    summary,
     scores: scoresMap(room),
   });
   io.to(room.id).emit('chat:system', {
@@ -332,6 +347,8 @@ function scoresMap(room) {
 
 
 function applyTurnEconomy(room, reason) {
+  const gains = {};
+  const add = (id, n) => { gains[id] = (gains[id] || 0) + n; };
   const drawer = room.players.get(room.drawerId);
   const guessers = Array.from(room.guessedBy).map((id) => room.players.get(id)).filter(Boolean);
 
@@ -344,21 +361,29 @@ function applyTurnEconomy(room, reason) {
       const totalGuessers = Math.max(1, room.players.size - 1);
       if (guessers.length / totalGuessers >= 0.7) drawerGain += DRAWER_IDEAL_BONUS;
       drawer.score += drawerGain;
+      add(drawer.id, drawerGain);
     } else if (reason === 'timeout' && room.strokes.length === 0) {
       drawer.score -= DRAWER_AFK_PENALTY;
+      add(drawer.id, -DRAWER_AFK_PENALTY);
     }
   }
 
   for (const p of room.players.values()) {
     if (p.id === room.drawerId) continue;
     const guessed = room.guessedBy.has(p.id);
+    if (guessed) add(p.id, p.lastGuessPoints || 0);
     const wasActive = room.turnChatActivity && room.turnChatActivity.has(p.id);
     if (!guessed) p.correctStreak = 0;
     if (!wasActive) p.afkTurns = (p.afkTurns || 0) + 1;
     else p.afkTurns = 0;
-    if (!guessed && !wasActive && p.afkTurns >= 2 && p.isConnected) p.score -= GUESSER_AFK_PENALTY;
+    if (!guessed && !wasActive && p.afkTurns >= 2 && p.isConnected) {
+      p.score -= GUESSER_AFK_PENALTY;
+      add(p.id, -GUESSER_AFK_PENALTY);
+    }
     p.lastGuessPoints = 0;
   }
+
+  return gains;
 }
 
 function basePointsForTurn(totalMs) {

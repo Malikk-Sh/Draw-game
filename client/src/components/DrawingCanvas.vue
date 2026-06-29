@@ -33,6 +33,22 @@ const colors = [
   '#8b4513', '#7f8c8d',
 ];
 const sizes = [2, 5, 10, 18, 28];
+
+// Эмодзи-реакции (доступны угадывающим во время рисования и всем — в итогах хода,
+// чтобы у рисующего реакции не перехватывали касания холста).
+const reactionEmojis = ['👍', '❤️', '😂', '😮', '🎉'];
+let lastReactAt = 0;
+function react(emoji) {
+  const now = Date.now();
+  if (now - lastReactAt < 400) return;
+  lastReactAt = now;
+  store.sendReaction(emoji);
+}
+const canReact = computed(() => {
+  if (!store.room) return false;
+  if (store.room.state === 'round_end') return true;
+  return store.room.state === 'drawing' && !isDrawer.value;
+});
 </script>
 
 <template>
@@ -42,7 +58,7 @@ const sizes = [2, 5, 10, 18, 28];
       <div v-if="showFlash" :key="flashKey" class="canvas-flash"></div>
       <transition name="overlay">
         <div
-          v-if="store.room && store.room.state !== 'drawing'"
+          v-if="store.room && store.room.state !== 'drawing' && store.room.state !== 'round_end'"
           class="canvas-overlay"
         >
           <div v-if="store.room.state === 'waiting'" class="overlay-content">
@@ -57,17 +73,30 @@ const sizes = [2, 5, 10, 18, 28];
             </p>
             <p v-else>Выбери слово в окне выше</p>
           </div>
-          <div v-else-if="store.room.state === 'round_end'" class="overlay-content">
-            <div class="overlay-emoji">🎬</div>
-            <p>Раунд завершён</p>
-            <p class="muted" v-if="store.lastTurnEnd?.word">Слово было: <b>{{ store.lastTurnEnd.word }}</b></p>
-          </div>
           <div v-else-if="store.room.state === 'game_end'" class="overlay-content">
             <div class="overlay-emoji">🏆</div>
             <p>Игра окончена</p>
           </div>
         </div>
       </transition>
+
+      <div class="reactions-layer" aria-hidden="true">
+        <span
+          v-for="r in store.reactions"
+          :key="r.id"
+          class="reaction-float"
+          :style="{ left: r.x + '%' }"
+        >{{ r.emoji }}</span>
+      </div>
+      <div v-if="canReact" class="reaction-bar">
+        <button
+          v-for="e in reactionEmojis"
+          :key="e"
+          class="react-btn"
+          :aria-label="'Реакция ' + e"
+          @click="react(e)"
+        >{{ e }}</button>
+      </div>
     </div>
 
     <div v-if="isDrawer && store.room?.state === 'drawing'" class="canvas-toolbar">
@@ -294,4 +323,54 @@ const sizes = [2, 5, 10, 18, 28];
   .action-btn .lbl { display: none; }
   .action-btn .ico { font-size: 1.2rem; }
 }
+
+/* ===== Эмодзи-реакции поверх холста ===== */
+.reactions-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 16;
+}
+.reaction-float {
+  position: absolute;
+  bottom: 6%;
+  font-size: 1.9rem;
+  animation: reaction-rise 2.1s ease-out forwards;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .25));
+}
+@keyframes reaction-rise {
+  0% { opacity: 0; transform: translateY(0) scale(.6); }
+  15% { opacity: 1; transform: translateY(-10%) scale(1.15); }
+  100% { opacity: 0; transform: translateY(-170%) scale(1); }
+}
+.reaction-bar {
+  position: absolute;
+  right: .4rem;
+  bottom: .4rem;
+  z-index: 20;
+  display: flex;
+  gap: .1rem;
+  pointer-events: auto;
+  background: rgba(255, 250, 242, .72);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: .15rem .25rem;
+  box-shadow: var(--shadow);
+}
+.react-btn {
+  background: transparent;
+  border: none;
+  min-height: 0;
+  padding: .1rem .25rem;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 999px;
+  transition: transform .12s;
+}
+.react-btn:hover { background: var(--bg-2); transform: scale(1.15); }
+.react-btn:active { transform: scale(.9); }
 </style>

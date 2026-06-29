@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import { useGameStore } from '../stores/gameStore';
+import { playSound } from '../composables/useSound';
 
 const store = useGameStore();
 const now = ref(Date.now());
@@ -33,6 +34,12 @@ const colorClass = computed(() => {
   return 'danger';
 });
 const lowTime = computed(() => percent.value <= 20);
+
+// Тиканье на последних 10 секундах хода.
+watch(remainSec, (now, prev) => {
+  if (!active.value) return;
+  if (now < prev && now <= 10 && now >= 1) playSound('tick');
+});
 </script>
 
 <template>
