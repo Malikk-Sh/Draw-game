@@ -234,9 +234,9 @@ onBeforeUnmount(() => {
           Создать и войти
         </button>
         <button :disabled="busy" @click="createTestRoom" class="secondary test-btn">
-          🧪 Тестовая комната (с ботом)
+          🧪 Тестовая комната
         </button>
-        <p class="muted test-hint">Один игрок + бот — для быстрой проверки без второго устройства.</p>
+        <p class="muted test-hint">Один игрок + бот</p>
         <p v-if="error" class="error">{{ error }}</p>
       </section>
     </div>
