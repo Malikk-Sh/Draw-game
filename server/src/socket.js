@@ -22,6 +22,8 @@ import {
 const MAX_NICKNAME = 20;
 const MAX_CHAT = 200;
 const DISCONNECT_GRACE_MS = 30000;
+const REACTIONS = ['👍', '❤️', '😂', '😮', '🎉'];
+const REACT_MIN_INTERVAL_MS = 500;
 
 const DEFAULT_SETTINGS = {
   rounds: 3,
@@ -254,6 +256,18 @@ export function registerSocketHandlers(io) {
       } else {
         io.to(room.id).emit(channel, payload);
       }
+    });
+
+    on('game:react', ({ emoji } = {}) => {
+      const room = currentRoom(socket);
+      if (!room) return;
+      const player = room.players.get(socket.id);
+      if (!player) return;
+      if (!REACTIONS.includes(emoji)) return;
+      const now = Date.now();
+      if (player.lastReactAt && now - player.lastReactAt < REACT_MIN_INTERVAL_MS) return;
+      player.lastReactAt = now;
+      io.to(room.id).emit('game:reaction', { id: `${socket.id}:${now}`, emoji });
     });
 
     on('disconnect', () => {

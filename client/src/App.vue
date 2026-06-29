@@ -2,11 +2,16 @@
 import { onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useGameStore } from './stores/gameStore';
+import { useSound, initAudioUnlock } from './composables/useSound';
 
 const store = useGameStore();
 const route = useRoute();
+const { muted, toggleMute } = useSound();
 
-onMounted(() => store.init());
+onMounted(() => {
+  store.init();
+  initAudioUnlock();
+});
 
 const isHome = computed(() => route.name === 'home');
 function getFullscreenElement() {
@@ -46,7 +51,10 @@ async function toggleFullscreen() {
       <span class="dot"></span>
       <span class="label">{{ store.connected ? 'онлайн' : 'переподключение...' }}</span>
     </div>
-    <button v-if="canFullscreen" class="ghost fs-toggle" @click="toggleFullscreen">⛶</button>
+    <div class="header-btns">
+      <button class="ghost snd-toggle" @click="toggleMute" :title="muted ? 'Включить звук' : 'Выключить звук'" :aria-label="muted ? 'Включить звук' : 'Выключить звук'">{{ muted ? '🔇' : '🔊' }}</button>
+      <button v-if="canFullscreen" class="ghost fs-toggle" @click="toggleFullscreen">⛶</button>
+    </div>
   </header>
   <router-view v-slot="{ Component }">
     <transition name="route" mode="out-in">
@@ -80,9 +88,14 @@ async function toggleFullscreen() {
   0% { box-shadow: 0 0 0 0 rgba(255, 179, 71, 0.6); }
   100% { box-shadow: 0 0 0 8px transparent; }
 }
+.header-btns {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
 @media (max-width: 480px) {
   .status .label { display: none; }
-  .fs-toggle {
+  .fs-toggle, .snd-toggle {
     min-height: 34px;
     padding: .25rem .55rem;
     font-size: 1rem;
