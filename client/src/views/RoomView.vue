@@ -279,14 +279,16 @@ watch(
   display: flex;
   flex-direction: column;
   gap: .35rem;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
 }
 .zone-chat {
-  flex: 0 1 auto;
-  min-height: 84px;
-  max-height: 30vh;
   display: flex;
+  min-height: 0;
+  /* Телефон портрет: компактный чат фиксированной высоты с внутренней прокруткой
+     (чтобы лента сообщений не разрасталась на пол-экрана). */
+  flex: none;
+  height: clamp(130px, 24vh, 200px);
 }
 .zone-chat :deep(.chat-box) { height: 100%; width: 100%; }
 
@@ -304,7 +306,7 @@ watch(
   }
   .pl-strip { grid-area: strip; }
   .zone-canvas { grid-area: canvas; min-height: 0; }
-  .zone-chat { grid-area: chat; min-height: 0; max-height: none; }
+  .zone-chat { grid-area: chat; min-height: 0; max-height: none; height: auto; flex: 1 1 auto; }
 }
 
 /* Десктоп: 3 колонки, полный список игроков */
