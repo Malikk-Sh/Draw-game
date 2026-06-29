@@ -1,9 +1,11 @@
 import {
+  addBot,
   addPlayer,
   createRoom,
   deleteRoom,
   findPlayerByUserId,
   getRoom,
+  hasHumanPlayers,
   listPublicRooms,
   publicState,
   removePlayer,
@@ -87,6 +89,23 @@ export function registerSocketHandlers(io) {
         hostNickname: nick,
       });
       joinSocketToRoom(socket, room, nick, userId);
+      io.to(room.id).emit('room:state', publicState(room));
+      safeCb(cb, { ok: true, roomId: room.id });
+    });
+
+    on('room:createTest', ({ nickname, userId } = {}, cb) => {
+      const nick = sanitizeNick(nickname);
+      const settingsClean = sanitizeSettings({ rounds: 2, turnSec: 60 });
+      const room = createRoom({
+        name: `🧪 Тест ${nick}`,
+        isPublic: false,
+        settings: settingsClean,
+        hostId: socket.id,
+        hostNickname: nick,
+      });
+      room.isTest = true;
+      joinSocketToRoom(socket, room, nick, userId);
+      addBot(room);
       io.to(room.id).emit('room:state', publicState(room));
       safeCb(cb, { ok: true, roomId: room.id });
     });
@@ -306,7 +325,8 @@ function finalizeRemoval(io, room, player) {
   const wasDrawer = player.id === room.drawerId;
   removePlayer(room, player.id);
   io.to(room.id).emit('chat:system', { text: `${player.nickname} покинул комнату` });
-  if (room.players.size === 0) {
+  // Если живых людей не осталось (например, в комнате только бот) — удаляем комнату.
+  if (!hasHumanPlayers(room)) {
     deleteRoom(room.id);
     return;
   }

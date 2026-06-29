@@ -62,6 +62,9 @@ export function createRoom({ name, isPublic, settings, hostId, hostNickname }) {
     redoStack: [],
     recentWords: [],
     turnChatActivity: new Set(),
+    botTimers: [],
+    botId: null,
+    isTest: false,
     settings,
   };
   rooms.set(id, room);
@@ -82,10 +85,12 @@ export function clearAllTimers(room) {
   if (room.choosingTimer) clearTimeout(room.choosingTimer);
   if (room.roundEndTimer) clearTimeout(room.roundEndTimer);
   room.hintTimers.forEach((t) => clearTimeout(t));
+  (room.botTimers || []).forEach((t) => clearTimeout(t));
   room.turnTimer = null;
   room.choosingTimer = null;
   room.roundEndTimer = null;
   room.hintTimers = [];
+  room.botTimers = [];
 }
 
 export function addPlayer(room, socketId, nickname, userId = null) {
@@ -130,6 +135,35 @@ export function findPlayerByUserId(room, userId) {
   return null;
 }
 
+let BOT_SEQ = 0;
+// Игрок-бот для тестовой комнаты: считается подключённым (стартует игру и
+// получает ход), но не имеет реального сокета и не умеет рисовать.
+export function addBot(room, nickname = '🤖 Бот') {
+  const id = `bot:${room.id}:${BOT_SEQ++}`;
+  const bot = {
+    id,
+    nickname,
+    score: 0,
+    joinedAt: Date.now(),
+    isConnected: true,
+    isBot: true,
+    userId: null,
+    disconnectTimer: null,
+    correctStreak: 0,
+    afkTurns: 0,
+    lastGuessPoints: 0,
+  };
+  room.players.set(id, bot);
+  room.botId = id;
+  if (room.isPublic) notifyLobby();
+  return bot;
+}
+
+export function hasHumanPlayers(room) {
+  for (const p of room.players.values()) if (!p.isBot) return true;
+  return false;
+}
+
 export function publicState(room) {
   return {
     id: room.id,
@@ -150,6 +184,7 @@ export function publicState(room) {
       nickname: p.nickname,
       score: p.score,
       isConnected: p.isConnected,
+      isBot: Boolean(p.isBot),
       hasGuessed: room.guessedBy.has(p.id),
     })),
     settings: room.settings,
