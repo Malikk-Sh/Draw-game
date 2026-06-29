@@ -48,7 +48,7 @@ async function playTest() {
         <div class="brand-emoji">🎨</div>
         <h1 class="brand-title">Скетч-Баттл</h1>
       </div>
-      <p class="muted brand-sub">Рисуй слово — друзья угадывают в чате. По очереди, всем весело.</p>
+      <p class="muted brand-sub">Рисуй слово — друзья угадывают в чате.</p>
 
 
       <div class="col" style="margin-top:1.2rem">
