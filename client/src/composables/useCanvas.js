@@ -145,7 +145,7 @@ export function useCanvas(canvasRef, { isDrawer, store }) {
     });
   }
 
-  watch(() => store.pendingNewStrokes.length, scheduleSync);
+  watch(() => store.strokeSeq, scheduleSync);
   watch(() => store.clearSignal, () => {
     // Отдельный сигнал очистки нужен, чтобы мгновенно сбрасывать локальный буфер.
     strokes = [];

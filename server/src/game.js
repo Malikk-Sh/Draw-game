@@ -1,12 +1,17 @@
 import {
   buildMaskedWord,
   clearAllTimers,
+  clearTurnTimers,
+  connectedCount,
+  ensureInDrawerOrder,
+  isRoomAlive,
   notifyLobby,
   publicState,
+  touchRoom,
 } from './rooms.js';
 import { normalize, randomWords, levenshtein } from './words.js';
 
-const CHOOSING_MS = 20000;
+export const CHOOSING_MS = 20000;
 const ROUND_END_MS = 5000;
 const POINTS_FIRST_BONUS = 20;
 const POINTS_LIGHTNING_BONUS = 25;
@@ -21,62 +26,102 @@ const GUESSER_AFK_PENALTY = 10;
 const BOT_CHOOSE_DELAY_MS = 900;
 const BOT_GUESS_DELAY_MS = 15000;
 
-function connectedCount(room) {
-  let n = 0;
-  for (const p of room.players.values()) if (p.isConnected) n += 1;
-  return n;
-}
+const ACTIVE_STATES = new Set(['choosing', 'drawing']);
 
 export function canStart(room) {
   return room.state === 'waiting' && connectedCount(room) >= 2;
 }
 
+// Очередь рисующих динамическая: синхронизируем её с фактическим составом
+// комнаты — выбывшие уходят, новые встают в конец.
+export function syncDrawerOrder(room) {
+  const seen = new Set();
+  room.drawerOrder = room.drawerOrder.filter((id) => {
+    if (seen.has(id) || !room.players.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+  for (const id of room.players.keys()) ensureInDrawerOrder(room, id);
+  for (const id of Array.from(room.drawnThisRound)) {
+    if (!room.players.has(id)) room.drawnThisRound.delete(id);
+  }
+}
+
+// Кандидаты на ход: подключённые игроки из очереди, ещё не рисовавшие в раунде.
+export function eligibleDrawers(room) {
+  return room.drawerOrder.filter((id) => {
+    const p = room.players.get(id);
+    return p && p.isConnected && !room.drawnThisRound.has(id);
+  });
+}
+
 export function startGame(io, room) {
-  if (!canStart(room)) return;
-  for (const p of room.players.values()) p.score = 0;
-  room.round = 0;
-  room.drawerOrder = Array.from(room.players.keys());
+  if (!isRoomAlive(room) || !canStart(room)) return;
+  clearAllTimers(room);
+  for (const p of room.players.values()) {
+    p.score = 0;
+    p.correctStreak = 0;
+    p.afkTurns = 0;
+    p.lastGuessPoints = 0;
+  }
+  room.round = 1;
+  room.drawerOrder = Array.from(room.players.values())
+    .filter((p) => p.isConnected)
+    .map((p) => p.id);
   shuffle(room.drawerOrder);
+  syncDrawerOrder(room);
+  room.drawnThisRound = new Set();
   room.drawerIndex = -1;
+  room.drawerId = null;
   room.recentWords = [];
+  touchRoom(room);
   io.to(room.id).emit('chat:system', { text: 'Игра началась!' });
   nextTurn(io, room);
 }
 
 export function nextTurn(io, room) {
+  // Отложенный таймер мог сработать уже после удаления комнаты.
+  if (!isRoomAlive(room)) return;
   clearAllTimers(room);
   room.guessedBy = new Set();
   room.strokes = [];
   room.redoStack = [];
   room.currentWord = null;
+  room.pendingChoices = null;
   room.wordMask = [];
   room.hintsRevealed = 0;
   room.turnChatActivity = new Set();
 
-  // Отключённые игроки остаются в комнате и таблице очков, но не получают ход.
-  const order = room.drawerOrder.filter((id) => {
-    const p = room.players.get(id);
-    return p && p.isConnected;
-  });
-  if (order.length < 2) {
-    endGame(io, room);
-    return;
-  }
-  room.drawerOrder = order;
-  room.drawerIndex += 1;
-  if (room.drawerIndex >= order.length) {
-    room.drawerIndex = 0;
-    room.round += 1;
-  } else if (room.round === 0) {
-    room.round = 1;
-  }
-  if (room.round > room.maxRounds) {
+  syncDrawerOrder(room);
+
+  // Игра имеет смысл только при двух и более подключённых игроках.
+  if (connectedCount(room) < 2) {
     endGame(io, room);
     return;
   }
 
-  room.drawerId = order[room.drawerIndex];
+  let candidates = eligibleDrawers(room);
+  if (candidates.length === 0) {
+    // Все живые уже рисовали в этом раунде — переходим к следующему.
+    room.round += 1;
+    room.drawnThisRound = new Set();
+    if (room.round > room.maxRounds) {
+      endGame(io, room);
+      return;
+    }
+    candidates = eligibleDrawers(room);
+  }
+  if (candidates.length === 0) {
+    endGame(io, room);
+    return;
+  }
+
+  room.drawerId = candidates[0];
+  room.drawnThisRound.add(room.drawerId);
+  room.drawerIndex = room.drawerOrder.indexOf(room.drawerId);
   room.state = 'choosing';
+  room.choosingStartedAt = Date.now();
+  touchRoom(room);
 
   const choices = randomWords(3, room.recentWords);
   room.pendingChoices = choices;
@@ -91,7 +136,7 @@ export function nextTurn(io, room) {
   });
 
   room.choosingTimer = setTimeout(() => {
-    if (room.state !== 'choosing') return;
+    if (!isRoomAlive(room) || room.state !== 'choosing') return;
     endTurn(io, room, 'no_word_chosen');
   }, CHOOSING_MS);
 
@@ -99,6 +144,7 @@ export function nextTurn(io, room) {
   if (drawer && drawer.isBot) {
     const botId = drawer.id;
     const t = setTimeout(() => {
+      if (!isRoomAlive(room)) return;
       if (room.state === 'choosing' && room.drawerId === botId && room.pendingChoices) {
         chooseWord(io, room, room.pendingChoices[0]);
       }
@@ -108,7 +154,7 @@ export function nextTurn(io, room) {
 }
 
 export function chooseWord(io, room, word) {
-  if (room.state !== 'choosing') return;
+  if (!isRoomAlive(room) || room.state !== 'choosing') return;
   const allowed = room.pendingChoices && room.pendingChoices.includes(word);
   if (!allowed) return;
   clearTimeout(room.choosingTimer);
@@ -122,6 +168,7 @@ export function chooseWord(io, room, word) {
   room.turnStartedAt = Date.now();
   room.recentWords.push(word);
   if (room.recentWords.length > 30) room.recentWords.shift();
+  touchRoom(room);
 
   io.to(room.id).emit('game:turnStart', {
     drawerId: room.drawerId,
@@ -159,6 +206,7 @@ function scheduleBotGuess(io, room, botId) {
   const word = room.currentWord;
   const delay = Math.min(BOT_GUESS_DELAY_MS, Math.max(3000, room.turnDurationMs - 4000));
   const t = setTimeout(() => {
+    if (!isRoomAlive(room)) return;
     if (room.state === 'drawing' && room.currentWord === word && !room.guessedBy.has(botId)) {
       handleGuess(io, room, botId, word);
     }
@@ -178,6 +226,7 @@ function botRevealWord(io, room) {
   const step = Math.min(4000, Math.max(1500, Math.floor((room.turnDurationMs * 0.5) / total)));
   for (let i = 1; i <= total; i++) {
     const t = setTimeout(() => {
+      if (!isRoomAlive(room)) return;
       if (room.state !== 'drawing' || room.currentWord !== word) return;
       const shown = letters.map((ch, idx) => (idx < i ? ch : '_')).join(' ');
       io.to(room.id).emit('chat:system', { text: `🤖 ${shown}` });
@@ -200,6 +249,7 @@ function scheduleHints(io, room) {
 }
 
 function revealHint(io, room) {
+  if (!isRoomAlive(room)) return;
   if (room.state !== 'drawing' || !room.currentWord) return;
   const candidates = [];
   for (let i = 0; i < room.currentWord.length; i++) {
@@ -218,8 +268,32 @@ function revealHint(io, room) {
   }
 }
 
+// Кто обязан угадать, чтобы ход завершился досрочно: только подключённые люди
+// (боты угадывают по своему таймеру, отключённые не угадают никогда).
+export function requiredGuessers(room) {
+  return Array.from(room.players.values()).filter(
+    (p) => p.id !== room.drawerId && p.isConnected && !p.isBot,
+  );
+}
+
+export function maybeEndTurnEarly(io, room) {
+  if (!isRoomAlive(room) || room.state !== 'drawing') return false;
+  const required = requiredGuessers(room);
+  if (required.length === 0) {
+    // Живых угадывающих не осталось (все вышли/отключились, либо в комнате
+    // только бот) — держать ход до таймаута бессмысленно.
+    endTurn(io, room, room.guessedBy.size > 0 ? 'all_guessed' : 'no_guessers');
+    return true;
+  }
+  if (required.every((p) => room.guessedBy.has(p.id))) {
+    endTurn(io, room, 'all_guessed');
+    return true;
+  }
+  return false;
+}
+
 export function handleGuess(io, room, socketId, text) {
-  if (room.state !== 'drawing') return { kind: 'idle' };
+  if (!isRoomAlive(room) || room.state !== 'drawing') return { kind: 'idle' };
   if (socketId === room.drawerId) return { kind: 'idle' };
   if (room.guessedBy.has(socketId)) return { kind: 'idle' };
 
@@ -228,9 +302,9 @@ export function handleGuess(io, room, socketId, text) {
   if (!guessNorm) return { kind: 'idle' };
 
   if (guessNorm === wordNorm) {
-    room.guessedBy.add(socketId);
     const guesser = room.players.get(socketId);
     if (!guesser) return { kind: 'idle' };
+    room.guessedBy.add(socketId);
 
     const elapsedMs = Math.max(0, Date.now() - room.turnStartedAt);
     const totalMs = Math.max(1, room.turnDurationMs);
@@ -246,6 +320,7 @@ export function handleGuess(io, room, socketId, text) {
     if (guesser.correctStreak === 5) gained += STREAK_5_BONUS;
     guesser.lastGuessPoints = gained;
     guesser.score += gained;
+    touchRoom(room);
 
     io.to(room.id).emit('chat:system', {
       text: `${guesser.nickname} угадал слово! (+${gained})`,
@@ -258,10 +333,7 @@ export function handleGuess(io, room, socketId, text) {
       scores: scoresMap(room),
     });
 
-    const guessersTotal = room.players.size - 1;
-    if (room.guessedBy.size >= guessersTotal) {
-      endTurn(io, room, 'all_guessed');
-    }
+    maybeEndTurnEarly(io, room);
     return { kind: 'correct' };
   }
 
@@ -274,13 +346,24 @@ export function handleGuess(io, room, socketId, text) {
 }
 
 export function endTurn(io, room, reason) {
+  if (!isRoomAlive(room)) return;
+  // Ход можно завершить только из активных состояний: иначе двойной вызов
+  // (например, дисконнект рисующего + истёкший таймер) перезапускал ротацию
+  // и мог «воскресить» уже завершённую игру.
+  if (!ACTIVE_STATES.has(room.state)) {
+    // Гасим только остатки таймеров хода: roundEndTimer уже ведёт партию
+    // дальше, и его отмена «подвесила» бы комнату навсегда.
+    clearTurnTimers(room);
+    return;
+  }
+  const wasDrawing = room.state === 'drawing';
   clearAllTimers(room);
-  let gains = {};
-  if (room.state === 'drawing') gains = applyTurnEconomy(room, reason);
-  if (room.state === 'round_end' || room.state === 'waiting') return;
+  const gains = wasDrawing ? applyTurnEconomy(room, reason) : {};
   const word = room.currentWord;
   const drawerId = room.drawerId;
   room.state = 'round_end';
+  room.pendingChoices = null;
+  touchRoom(room);
   // Итоги хода: кто сколько набрал именно за этот ход (для модалки-recap).
   const summary = Array.from(room.players.values())
     .map((p) => ({
@@ -302,14 +385,19 @@ export function endTurn(io, room, reason) {
   io.to(room.id).emit('chat:system', {
     text: word ? `Слово было: ${word}` : 'Ход завершён.',
   });
+  if (room.isPublic) notifyLobby();
   room.roundEndTimer = setTimeout(() => nextTurn(io, room), ROUND_END_MS);
 }
 
 export function endGame(io, room) {
+  if (!isRoomAlive(room)) return;
   clearAllTimers(room);
   room.state = 'game_end';
   room.drawerId = null;
   room.currentWord = null;
+  room.pendingChoices = null;
+  room.drawnThisRound = new Set();
+  touchRoom(room);
   const ranking = Array.from(room.players.values())
     .map((p) => ({ id: p.id, nickname: p.nickname, score: p.score }))
     .sort((a, b) => b.score - a.score);
@@ -317,6 +405,7 @@ export function endGame(io, room) {
   io.to(room.id).emit('chat:system', {
     text: ranking[0] ? `Победитель: ${ranking[0].nickname}!` : 'Игра окончена.',
   });
+  io.to(room.id).emit('room:state', publicState(room));
   if (room.isPublic) notifyLobby();
 }
 
@@ -325,13 +414,24 @@ export function resetToLobby(room) {
   room.state = 'waiting';
   room.round = 0;
   room.drawerId = null;
+  room.drawerIndex = -1;
   room.currentWord = null;
+  room.pendingChoices = null;
   room.wordMask = [];
+  room.hintsRevealed = 0;
   room.strokes = [];
   room.redoStack = [];
   room.guessedBy = new Set();
-  room.drawerIndex = -1;
-  for (const p of room.players.values()) p.score = 0;
+  room.turnChatActivity = new Set();
+  room.drawnThisRound = new Set();
+  syncDrawerOrder(room);
+  for (const p of room.players.values()) {
+    p.score = 0;
+    p.correctStreak = 0;
+    p.afkTurns = 0;
+    p.lastGuessPoints = 0;
+  }
+  touchRoom(room);
   if (room.isPublic) notifyLobby();
 }
 
@@ -358,7 +458,12 @@ function applyTurnEconomy(room, reason) {
       const share = guessers.reduce((acc, p) => acc + Math.round((p.lastGuessPoints || 0) * DRAWER_SHARE), 0);
       let drawerGain = DRAWER_BASE_IF_GUESSED + share;
       drawerGain = Math.min(drawerGain, Math.round(bestGuesser * DRAWER_CAP_MULT));
-      const totalGuessers = Math.max(1, room.players.size - 1);
+      // Знаменатель — только те, кто реально мог угадать (подключённые),
+      // иначе «идеальный ход» не засчитывался из-за отключённых игроков.
+      const totalGuessers = Math.max(
+        1,
+        Array.from(room.players.values()).filter((p) => p.isConnected && p.id !== room.drawerId).length,
+      );
       if (guessers.length / totalGuessers >= 0.7) drawerGain += DRAWER_IDEAL_BONUS;
       drawer.score += drawerGain;
       add(drawer.id, drawerGain);
@@ -372,15 +477,18 @@ function applyTurnEconomy(room, reason) {
     if (p.id === room.drawerId) continue;
     const guessed = room.guessedBy.has(p.id);
     if (guessed) add(p.id, p.lastGuessPoints || 0);
-    const wasActive = room.turnChatActivity && room.turnChatActivity.has(p.id);
     if (!guessed) p.correctStreak = 0;
+    p.lastGuessPoints = 0;
+    // AFK-статистику ведём только для живых людей: боты и отключённые
+    // не должны копить штрафы.
+    if (p.isBot || !p.isConnected) continue;
+    const wasActive = room.turnChatActivity && room.turnChatActivity.has(p.id);
     if (!wasActive) p.afkTurns = (p.afkTurns || 0) + 1;
     else p.afkTurns = 0;
-    if (!guessed && !wasActive && p.afkTurns >= 2 && p.isConnected) {
+    if (!guessed && !wasActive && p.afkTurns >= 2) {
       p.score -= GUESSER_AFK_PENALTY;
       add(p.id, -GUESSER_AFK_PENALTY);
     }
-    p.lastGuessPoints = 0;
   }
 
   return gains;

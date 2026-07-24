@@ -10,6 +10,7 @@
     "install:all": "npm install --prefix client --include=dev && npm install --prefix server",
     "postinstall": "npm install --prefix client --include=dev && npm install --prefix server",
     "build": "npm run build --prefix client",
+    "test": "npm test --prefix server",
     "start": "node server/src/index.js",
     "dev": "concurrently -n server,client -c yellow,cyan \"npm run dev --prefix server\" \"npm run dev --prefix client\""
   },

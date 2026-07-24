@@ -29,8 +29,14 @@ const inviteUrl = computed(() => {
   return `${window.location.origin}/room/${store.room.id}`;
 });
 
+// Сервер стартует игру только при 2+ подключённых игроках — кнопка должна
+// считать так же, иначе хост жмёт «Начать» вхолостую.
+const connectedPlayers = computed(
+  () => (store.room?.players || []).filter((p) => p.isConnected).length,
+);
+
 const canStart = computed(() => {
-  return store.isHost && store.room?.state === 'waiting' && store.room.players.length >= 2;
+  return store.isHost && store.room?.state === 'waiting' && connectedPlayers.value >= 2;
 });
 
 const stateLabel = computed(() => {
@@ -45,30 +51,47 @@ const stateLabel = computed(() => {
   }
 });
 
+let joinInFlight = null;
+
+// Вход в комнату идемпотентен и повторяется после каждого реконнекта:
+// новый socket.id сервер не знает, и без повторного room:join игрок
+// остаётся «в комнате» только на своём экране.
 async function joinIfNeeded() {
-  if (store.room?.id === props.id) return;
   if (!userStore.nickname) {
     router.push('/');
     return;
   }
+  if (joinInFlight) return joinInFlight;
   const socket = getSocket();
-  if (!socket.connected) {
-    await new Promise((res) => socket.once('connect', res));
-  }
-  const res = await emitAck('room:join', {
-    roomId: props.id,
-    nickname: userStore.nickname,
-    userId: userStore.ensureUserId(),
-  });
-  if (!res?.ok) {
-    error.value = res?.error || 'Не удалось войти в комнату';
-    if ((res?.error || '').includes('заполнена')) {
-      store.lastRoomId = null;
-      router.push('/lobby');
+  if (!socket.connected) return;
+  if (!store.needsJoin(props.id)) return;
+
+  joinInFlight = (async () => {
+    try {
+      const res = await emitAck('room:join', {
+        roomId: props.id,
+        nickname: userStore.nickname,
+        userId: userStore.ensureUserId(),
+      });
+      if (!res?.ok) {
+        // Пока соединения нет, повторим при следующем connect — комната
+        // могла просто не успеть ответить.
+        error.value = res?.error || 'Не удалось войти в комнату';
+        if ((res?.error || '').includes('заполнена')) {
+          store.lastRoomId = null;
+          router.push('/lobby');
+        }
+        return;
+      }
+      error.value = '';
+      store.markJoinedRoom(props.id);
+    } catch (_) {
+      // таймаут ack — попробуем ещё раз на следующем connect
+    } finally {
+      joinInFlight = null;
     }
-    return;
-  }
-  store.markJoinedRoom(props.id);
+  })();
+  return joinInFlight;
 }
 
 function start() {
@@ -81,7 +104,15 @@ function leave() {
 }
 
 function handleOnline() {
-  if (!store.leftManually && store.lastRoomId === props.id) joinIfNeeded();
+  if (store.leftManually) return;
+  const socket = getSocket();
+  if (!socket.connected) socket.connect();
+  joinIfNeeded();
+}
+
+function handleVisibility() {
+  if (document.visibilityState !== 'visible') return;
+  handleOnline();
 }
 
 async function copyInvite() {
@@ -93,13 +124,15 @@ async function copyInvite() {
 }
 
 onMounted(() => {
-  joinIfNeeded();
   store.clearManualLeave();
+  joinIfNeeded();
   window.addEventListener('online', handleOnline);
+  document.addEventListener('visibilitychange', handleVisibility);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('online', handleOnline);
+  document.removeEventListener('visibilitychange', handleVisibility);
 });
 
 function enqueueToastMessage(msg) {
@@ -114,6 +147,18 @@ watch(
   () => store.connected,
   (c) => {
     if (c) joinIfNeeded();
+  },
+);
+
+// Комнату закрыл сервер (пустая/неактивная) — уводим в лобби, а не оставляем
+// клиент с «мёртвым» состоянием.
+watch(
+  () => store.roomClosed,
+  (reason) => {
+    if (!reason) return;
+    store.roomClosed = null;
+    store.lastRoomId = null;
+    router.push('/lobby');
   },
 );
 
@@ -193,7 +238,7 @@ watch(
     <div v-else class="center-screen muted">
       <div class="loading">
         <div class="spinner"></div>
-        Подключаемся к комнате...
+        {{ store.connected ? 'Подключаемся к комнате...' : 'Восстанавливаем соединение...' }}
       </div>
     </div>
   </main>

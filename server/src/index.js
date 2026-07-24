@@ -21,9 +21,29 @@ const io = new SocketServer(httpServer, {
   cors: isProd ? undefined : { origin: '*' },
   pingInterval: 20000,
   pingTimeout: 25000,
+  // Восстановление состояния соединения намеренно НЕ включаем: сокет вернулся бы
+  // со старым id в комнату, которую сервер уже пометил отключённой. Реконнект
+  // выполняет клиент явным room:join по userId — это единственный путь.
+});
+
+io.engine.on('connection_error', (err) => {
+  console.warn('[engine] connection_error', err.code, err.message);
 });
 
 registerSocketHandlers(io);
+
+// На free-плане Render процесс регулярно усыпляют/перезапускают: логируем сигналы,
+// чтобы «самопроизвольные перезагрузки» были отличимы от падений по ошибке.
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, () => {
+    console.log(`[shutdown] received ${sig}`);
+    try {
+      io.close();
+    } catch (_) {}
+    httpServer.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+  });
+}
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 

@@ -14,6 +14,10 @@ export const useGameStore = defineStore('game', {
     maskedWord: '',
     messages: [],
     pendingNewStrokes: [],
+    // Монотонный счётчик событий холста: следить за длиной очереди нельзя —
+    // если она успевает опустеть и снова наполниться внутри одного тика,
+    // watcher не срабатывает и холст «замирает» до следующего штриха.
+    strokeSeq: 0,
     clearSignal: 0,
     correctGuessSignal: 0,
     lastTurnEnd: null,
@@ -23,6 +27,11 @@ export const useGameStore = defineStore('game', {
     reactions: [],
     lastRoomId: null,
     leftManually: false,
+    // socket.id, под которым мы реально числимся в комнате на сервере.
+    // После реконнекта id меняется — это признак, что нужно перезайти.
+    joinedSocketId: null,
+    roomClosed: null,
+    initialized: false,
   }),
   getters: {
     isHost: (s) => s.room && s.myId && s.room.hostId === s.myId,
@@ -36,16 +45,36 @@ export const useGameStore = defineStore('game', {
   },
   actions: {
     init() {
+      // Повторный init() навесил бы вторые копии всех обработчиков —
+      // отсюда дубли сообщений и «двойные» ходы на клиенте.
+      if (this.initialized) return;
+      this.initialized = true;
       const s = getSocket();
       s.on('connect', () => {
         this.connected = true;
         this.myId = s.id;
+        // Новый socket.id ⇒ сервер нас в комнате не знает, пока не перезайдём.
+        if (this.joinedSocketId !== s.id) this.joinedSocketId = null;
       });
       s.on('disconnect', () => {
         this.connected = false;
+        this.joinedSocketId = null;
+      });
+      s.on('room:closed', ({ reason } = {}) => {
+        this.roomClosed = reason || 'closed';
+        this.room = null;
+        this.joinedSocketId = null;
+        this.lastRoomId = null;
       });
       s.on('room:state', (state) => {
         this.room = state;
+        this.roomClosed = null;
+        // Сервер прислал состояние ⇒ мы в комнате под текущим socket.id.
+        if (state.players?.some((p) => p.id === s.id)) {
+          this.joinedSocketId = s.id;
+          this.myId = s.id;
+          this.lastRoomId = state.id;
+        }
         this.maskedWord = state.maskedWord || '';
         if (state.drawerId !== this.myId) this.wordToDraw = null;
         if (state.state !== 'choosing') {
@@ -54,9 +83,9 @@ export const useGameStore = defineStore('game', {
         if (state.state !== 'game_end') this.lastGameEnd = null;
         if (state.state !== 'round_end') this.lastTurnEnd = null;
         if (Array.isArray(state.strokes) && state.strokes.length) {
-          this.pendingNewStrokes.push({ kind: 'replace', strokes: state.strokes });
+          this.pushStrokeEvent({ kind: 'replace', strokes: state.strokes });
         } else {
-          this.pendingNewStrokes.push({ kind: 'replace', strokes: [] });
+          this.pushStrokeEvent({ kind: 'replace', strokes: [] });
         }
       });
       s.on('room:stateUpdate', (patch) => {
@@ -89,17 +118,17 @@ export const useGameStore = defineStore('game', {
         this.room.maxRounds = payload.maxRounds;
         this.maskedWord = payload.maskedWord;
         for (const p of this.room.players) p.hasGuessed = false;
-        this.pendingNewStrokes.push({ kind: 'replace', strokes: [] });
+        this.pushStrokeEvent({ kind: 'replace', strokes: [] });
         playSound('turnStart');
       });
       s.on('game:drawStroke', (stroke) => {
-        this.pendingNewStrokes.push({ kind: 'add', stroke });
+        this.pushStrokeEvent({ kind: 'add', stroke });
       });
       s.on('game:canvasReplace', ({ strokes }) => {
-        this.pendingNewStrokes.push({ kind: 'replace', strokes: strokes || [] });
+        this.pushStrokeEvent({ kind: 'replace', strokes: strokes || [] });
       });
       s.on('game:clearCanvas', () => {
-        this.pendingNewStrokes.push({ kind: 'replace', strokes: [] });
+        this.pushStrokeEvent({ kind: 'replace', strokes: [] });
         this.clearSignal += 1;
       });
       s.on('game:hint', ({ maskedWord }) => {
@@ -161,6 +190,10 @@ export const useGameStore = defineStore('game', {
     clearMessages() {
       this.messages = [];
     },
+    pushStrokeEvent(event) {
+      this.pendingNewStrokes.push(event);
+      this.strokeSeq += 1;
+    },
     consumeStrokeEvents() {
       const events = this.pendingNewStrokes;
       this.pendingNewStrokes = [];
@@ -171,6 +204,8 @@ export const useGameStore = defineStore('game', {
       s.emit('room:leave');
       this.leftManually = true;
       this.lastRoomId = null;
+      this.joinedSocketId = null;
+      this.roomClosed = null;
       this.room = null;
       this.wordToDraw = null;
       this.wordChoices = null;
@@ -183,6 +218,14 @@ export const useGameStore = defineStore('game', {
     markJoinedRoom(roomId) {
       this.lastRoomId = roomId || null;
       this.leftManually = false;
+      this.roomClosed = null;
+    },
+    // Нужен ли (пере)вход в комнату: либо мы не в ней, либо изменился socket.id.
+    needsJoin(roomId) {
+      const s = getSocket();
+      if (!s.connected) return false;
+      if (this.joinedSocketId !== s.id) return true;
+      return this.room?.id !== roomId;
     },
     clearManualLeave() {
       this.leftManually = false;
