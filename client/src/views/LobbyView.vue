@@ -20,7 +20,13 @@ let pollTimer = null;
 
 const rooms = computed(() => store.lobbyRooms);
 
+function subscribe() {
+  getSocket().emit('lobby:subscribe');
+}
+
 async function refresh() {
+  const sock = getSocket();
+  if (!sock.connected) return;
   try {
     const res = await emitAck('lobby:list');
     if (res?.rooms) store.lobbyRooms = res.rooms;
@@ -39,6 +45,7 @@ async function createRoom() {
       settings: settings.value,
     });
     if (res?.ok) {
+      store.markJoinedRoom(res.roomId);
       router.push(`/room/${res.roomId}`);
     } else {
       error.value = res?.error || 'Не удалось создать';
@@ -80,8 +87,12 @@ async function join(id) {
       nickname: userStore.nickname,
       userId: userStore.ensureUserId(),
     });
-    if (res?.ok) router.push(`/room/${res.roomId}`);
-    else error.value = res?.error || 'Не удалось войти';
+    if (res?.ok) {
+      store.markJoinedRoom(res.roomId);
+      router.push(`/room/${res.roomId}`);
+    } else {
+      error.value = res?.error || 'Не удалось войти';
+    }
   } catch (_) {
     error.value = 'Ошибка соединения';
   } finally {
@@ -101,16 +112,19 @@ onMounted(() => {
     return;
   }
   const sock = getSocket();
-  const subscribe = () => sock.emit('lobby:subscribe');
   if (sock.connected) subscribe();
+  // Подписку восстанавливаем после каждого реконнекта (комнаты на сервере
+  // могли смениться, а прежняя подписка умерла вместе с сокетом).
   sock.on('connect', subscribe);
   refresh();
-  pollTimer = setInterval(refresh, 2000);
+  pollTimer = setInterval(refresh, 4000);
 });
 
 onBeforeUnmount(() => {
   const sock = getSocket();
   sock.emit('lobby:unsubscribe');
+  // Без снятия обработчика каждый заход в лобби добавлял бы ещё один.
+  sock.off('connect', subscribe);
   if (pollTimer) clearInterval(pollTimer);
 });
 </script>

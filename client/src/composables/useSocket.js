@@ -24,11 +24,15 @@ export function emitAck(event, payload, timeoutMs = 5000) {
       done = true;
       reject(new Error('timeout'));
     }, timeoutMs);
-    s.emit(event, payload, (response) => {
+    const onAck = (response) => {
       if (done) return;
       done = true;
       clearTimeout(t);
       resolve(response);
-    });
+    };
+    // Без payload его нельзя передавать как undefined: сервер получил бы
+    // лишний аргумент и не нашёл бы ack-колбэк.
+    if (payload === undefined) s.emit(event, onAck);
+    else s.emit(event, payload, onAck);
   });
 }
